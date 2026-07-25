@@ -1,0 +1,43 @@
+{
+  "name": "fazal-paint-website",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev:server": "nodemon server/send-order-server.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start-server": "node server/send-order-server.js"
+  },
+  "dependencies": {
+    "@emailjs/browser": "^3.12.1",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.11.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "framer-motion": "^11.18.2",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.541.0",
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-helmet-async": "^3.0.0",
+    "react-router-dom": "^6.18.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.6.1",
+    "autoprefixer": "^10.4.19",
+    "nodemon": "^3.1.14",
+    "postcss": "^8.4.37",
+    "tailwindcss": "^3.4.4",
+    "vite": "^5.4.1"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.21.5": true
+  }
+}
