@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+
+# Debug logs
+server-debug.err
+server-debug.log
+npm-debug.log*
+
+# Temporary test files
+tmp_*.js
+tmp_*.mjs
+
+# Database
+*.sqlite
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
