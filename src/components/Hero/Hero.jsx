@@ -127,7 +127,7 @@ function Hero() {
         initial={{ opacity: 0, scale: 1.04 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full overflow-hidden aspect-[3/2] sm:aspect-[1915/821]"
+        className="relative w-full overflow-hidden aspect-[3/2] sm:aspect-auto sm:h-[calc(100vh-88px)] sm:min-h-[420px]"
       >
         {isAdmin && editMode ? (
           <div className="absolute left-4 top-4 z-20 flex flex-wrap items-center gap-2 rounded-full border border-dashed border-[#F5B942] bg-[#4A3527]/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#FFF9F4] backdrop-blur">
@@ -175,43 +175,38 @@ function Hero() {
             </label>
           </div>
         ) : null}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#4A3527]/90 via-transparent to-transparent sm:hidden" />
-      </motion.div>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#4A3527]/90 via-transparent to-transparent" />
 
-      {/* DESKTOP FIX: these labels used to be stacked on top of the banner
-          image (absolute, bottom-8). On a normal laptop screen the four
-          pills covered the bottom ~40% of the poster, hiding the address
-          and phone number. They now sit in their own strip BELOW the
-          image so the whole poster stays visible. */}
-      <div className="hidden px-4 py-6 sm:block">
-        <div className="mx-auto flex max-w-5xl flex-wrap justify-center gap-3 text-center">
-          {heroTexts.map((item, index) => (
-            <motion.div
-              key={`${item.label}-${index}`}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.25 + index * 0.12, ease: [0.16, 1, 0.3, 1] }}
-            >
-              {isAdmin && editMode ? (
-                <button
-                  type="button"
-                  className="inline-flex rounded-full border border-dashed border-[#F5B942] bg-black/70 px-4 py-2 text-xs uppercase tracking-[0.24em] text-[#FFF9F4] shadow-soft sm:text-sm"
-                  onClick={() => {
-                    setEditingTextIndex(index);
-                    setDraftText(item.label);
-                  }}
-                >
-                  {item.label}
-                </button>
-              ) : (
-                <div className="inline-flex rounded-full bg-black/60 px-4 py-2 text-xs uppercase tracking-[0.24em] text-[#FFF9F4] shadow-soft sm:text-sm">
-                  {item.label}
-                </div>
-              )}
-            </motion.div>
-          ))}
+        <div className="pointer-events-none absolute inset-x-0 bottom-8 hidden justify-center px-4 sm:flex">
+          <div className="grid w-full max-w-3xl gap-3 text-center">
+            {heroTexts.map((item, index) => (
+              <motion.div
+                key={`${item.label}-${index}`}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.55, delay: 0.25 + index * 0.12, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {isAdmin && editMode ? (
+                  <button
+                    type="button"
+                    className="pointer-events-auto mx-auto inline-flex rounded-full border border-dashed border-[#F5B942] bg-black/70 px-4 py-2 text-xs uppercase tracking-[0.24em] text-[#FFF9F4] shadow-soft sm:text-sm"
+                    onClick={() => {
+                      setEditingTextIndex(index);
+                      setDraftText(item.label);
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ) : (
+                  <div className="mx-auto inline-flex rounded-full bg-black/60 px-4 py-2 text-xs uppercase tracking-[0.24em] text-[#FFF9F4] shadow-soft sm:text-sm">
+                    {item.label}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
         </div>
-      </div>
+      </motion.div>
 
       {editingTextIndex !== null ? (
         <div className="mx-auto mt-4 max-w-xl px-4">
