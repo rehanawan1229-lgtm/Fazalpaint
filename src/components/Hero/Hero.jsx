@@ -100,9 +100,8 @@ function Hero() {
   // admin has uploaded a custom photo via "Replace Photo", that one photo is
   // used everywhere (there's only one upload slot) — otherwise mobile and
   // desktop each get their own purpose-made image.
-  const desktopImageUrl = heroContent.hero_image_url || '/hero-banner.jpg';
-  const mobileImageUrl = heroContent.hero_image_url || '/hero-banner-mobile.jpg';
-
+  const desktopImageUrl = heroContent.hero_image_url || '/hero-banner.webp';
+   const mobileImageUrl = heroContent.hero_image_url || '/hero-banner-mobile.webp';
   return (
     <section className="relative bg-[#4A3527] text-white">
       {/* FIX: removed the old scroll-jacking wrapper (min-h-[300vh] track +
