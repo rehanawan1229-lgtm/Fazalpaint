@@ -4,7 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Fazal Paint Hardware and Trolley House — Dera Ismail Khan</title>
-    <link rel="icon" href="Icon.png" type="image/png">
+    <link rel="icon" type="image/png" href="/Icon.png" />
+    <!-- SPEED: fonts are requested from here (early, in parallel) instead of
+         from an @import inside the CSS file, which only started the font
+         download AFTER the CSS finished loading. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap"
+    />
+    <!-- SPEED: start downloading the hero banner immediately (the right size
+         for the screen) instead of waiting for React to start and render it. -->
+    <link rel="preload" as="image" href="/hero-banner-mobile.webp" type="image/webp" media="(max-width: 639px)" />
+    <link rel="preload" as="image" href="/hero-banner.webp" type="image/webp" media="(min-width: 640px)" />
     <meta
       name="description"
       content="Fazal Paint Hardware and Trolley House — Dera Ismail Khan's trusted source for Master Paint, Berger Paint, and Choice Paint since 1982. Four floors of paints, tools, and hardware on Bannu Road."
@@ -16,7 +29,6 @@
     />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Fazal Paint Hardware and Trolley House" />
-    <link rel="icon" type="image/png" href="Icon.png" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body class="bg-[var(--color-bg-light)] text-[var(--color-text-primary)]">

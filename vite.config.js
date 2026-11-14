@@ -9,6 +9,21 @@ const apiTarget = process.env.VITE_API_URL || `http://127.0.0.1:${backendPort}`;
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // SPEED: keep the big libraries in their own files so the browser
+        // can cache them across deployments (your own code changes often,
+        // React / framer-motion almost never do).
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return 'react-vendor';
+          if (id.includes('framer-motion')) return 'motion';
+          return undefined;
+        }
+      }
+    }
+  },
   server: {
     // FIX: '127.0.0.1' only accepts connections FROM the same machine —
     // a phone on the same WiFi could never reach it. 'true' listens on
