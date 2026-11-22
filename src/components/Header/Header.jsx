@@ -69,7 +69,9 @@ function Header() {
           <div className={`flex items-center justify-center overflow-hidden rounded-2xl bg-bg-light border border-border transition-all duration-300 ${isScrolled ? 'h-10 w-10' : 'h-14 w-14'}`}>
             {logoLoaded ? (
               <img
-                src="/logo.png"
+                src="/logo.webp"
+                width="224"
+                height="233"
                 alt="Fazal Paint Hardware logo"
                 className="h-full w-full object-contain"
                 onError={() => setLogoLoaded(false)}

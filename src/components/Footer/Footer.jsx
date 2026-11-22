@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { MapPin, Phone, Clock3, MessageSquare, Edit2, Check, X, Instagram, Facebook, Youtube, Music2, Eye, EyeOff } from 'lucide-react';
-import { api } from '../../lib/adminApi';
+import { api, apiCached } from '../../lib/adminApi';
 import { useAdminAuth } from '../../contexts/AdminAuthContext';
 
 // FIX: Pinterest replaced with YouTube (matches how the shop actually
@@ -28,15 +28,13 @@ function Footer() {
   const [togglingPlatform, setTogglingPlatform] = useState(null);
 
   useEffect(() => {
-    const loadSocialLinks = async () => {
-      try {
-        const data = await api('/api/social-links');
-        if (data) setSocialLinks(data);
-      } catch (err) {
-        console.error('Failed to load social links:', err);
-      }
-    };
-    loadSocialLinks();
+    let alive = true;
+    apiCached('/api/social-links', (data) => {
+      if (alive && data) setSocialLinks(data);
+    }).catch((err) => {
+      console.error('Failed to load social links:', err);
+    });
+    return () => { alive = false; };
   }, []);
 
   // When an admin enters edit mode, also load the full (including hidden)

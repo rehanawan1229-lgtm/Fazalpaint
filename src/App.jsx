@@ -1,28 +1,32 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { HelmetProvider, Helmet } from 'react-helmet-async';
 import Header from './components/Header/Header';
 import Footer from './components/Footer/Footer';
 import Home from './pages/Home';
-import Products from './pages/Products';
-import ProductDetail from './pages/ProductDetail';
-import About from './pages/About';
-import Contact from './pages/Contact';
-import Checkout from './pages/Checkout';
-import Account from './pages/Account';
-import Invoice from './pages/Invoice';
-import AdminProducts from './pages/AdminProducts';
-import AdminOrders from './pages/AdminOrders';
-import AdminSupport from './pages/AdminSupport';
-import AdminBulkOrders from './pages/AdminBulkOrders';
-import AdminTools from './pages/AdminTools';
+// SPEED: every page except Home is loaded only when someone opens it.
+// Before, the whole site — including the huge admin pages and the Excel
+// library — was downloaded on the very first visit.
+const Products = lazy(() => import('./pages/Products'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const About = lazy(() => import('./pages/About'));
+const Contact = lazy(() => import('./pages/Contact'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Account = lazy(() => import('./pages/Account'));
+const Invoice = lazy(() => import('./pages/Invoice'));
+const AdminProducts = lazy(() => import('./pages/AdminProducts'));
+const AdminOrders = lazy(() => import('./pages/AdminOrders'));
+const AdminSupport = lazy(() => import('./pages/AdminSupport'));
+const AdminBulkOrders = lazy(() => import('./pages/AdminBulkOrders'));
+const AdminTools = lazy(() => import('./pages/AdminTools'));
 import CartDrawer from './components/Cart/CartDrawer';
 import { CartProvider } from './components/Cart/CartContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { WishlistProvider } from './contexts/WishlistContext';
 import AdminEditToggle from './components/AdminEditToggle';
 import PageTransition from './components/motion/PageTransition';
-import ChatWidget from './components/ChatWidget/ChatWidget';
+const ChatWidget = lazy(() => import('./components/ChatWidget/ChatWidget'));
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -60,12 +64,16 @@ function App() {
           <div className="min-h-screen bg-[var(--color-bg-light)] text-[var(--color-text-primary)]">
             <Header />
             <main>
-              <AnimatedRoutes />
+              <Suspense fallback={<div className="min-h-[60vh]" aria-busy="true" />}>
+                <AnimatedRoutes />
+              </Suspense>
             </main>
             <CartDrawer />
             <Footer />
             <AdminEditToggle />
-            <ChatWidget />
+            <Suspense fallback={null}>
+              <ChatWidget />
+            </Suspense>
           </div>
         </CartProvider>
         </WishlistProvider>

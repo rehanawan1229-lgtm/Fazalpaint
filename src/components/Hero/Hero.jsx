@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAdminAuth } from '../../contexts/AdminAuthContext';
-import { api, uploadImage } from '../../lib/adminApi';
+import { api, apiCached, uploadImage } from '../../lib/adminApi';
 
 const defaultHeroTexts = [
   { label: 'Trusted Since 1982' },
@@ -22,27 +22,26 @@ function Hero() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const loadContent = async () => {
-      try {
-        const content = await api('/api/content');
-        setHeroContent(content || {});
-        const savedTexts = defaultHeroTexts.map((item, index) => ({
-          ...item,
-          label: content?.[`hero_text_${index}`] || item.label
-        }));
-        setHeroTexts(savedTexts);
-        if (content?.hero_image_position) {
-          setHeroPosition(content.hero_image_position);
-        }
-        if (content?.hero_image_url) {
-          setHeroContent((current) => ({ ...current, hero_image_url: content.hero_image_url }));
-        }
-      } catch {
-        setHeroTexts(defaultHeroTexts);
+    let alive = true;
+    const applyContent = (content) => {
+      if (!alive) return;
+      setHeroContent(content || {});
+      const savedTexts = defaultHeroTexts.map((item, index) => ({
+        ...item,
+        label: content?.[`hero_text_${index}`] || item.label
+      }));
+      setHeroTexts(savedTexts);
+      if (content?.hero_image_position) {
+        setHeroPosition(content.hero_image_position);
       }
     };
 
-    loadContent();
+    // SPEED: paint from the saved copy instantly, refresh in the background.
+    apiCached('/api/content', applyContent).catch(() => {
+      if (alive) setHeroTexts(defaultHeroTexts);
+    });
+
+    return () => { alive = false; };
   }, []);
 
   const handleHeroTextSave = async (index, value) => {
@@ -141,6 +140,8 @@ function Hero() {
           <img
             src={desktopImageUrl}
             alt="Fazal Paint Hardware — Shop showcase"
+            fetchpriority="high"
+            decoding="async"
             className={`h-full w-full bg-[#4A3527] object-contain sm:object-cover ${isAdmin && editMode ? 'cursor-grab' : ''}`}
             style={{ objectPosition: heroPosition }}
             onMouseDown={(event) => {

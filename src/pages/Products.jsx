@@ -5,7 +5,7 @@ import ProductCard from '../components/ProductCard';
 import ProductCardSkeleton from '../components/ProductCardSkeleton';
 import Reveal from '../components/motion/Reveal';
 import { products as fallbackProducts } from '../data/products';
-import { api } from '../lib/adminApi';
+import { apiCached } from '../lib/adminApi';
 import { normalizeProductCatalog } from '../lib/productCatalog';
 
 // Top-level categories. Every product's `category` field should be
@@ -65,45 +65,34 @@ function Products() {
   // up/down controls in the Category Visibility panel.
   const [categoryOrder, setCategoryOrder] = useState(DEFAULT_DEPARTMENTS);
 
+  // SPEED: all three requests start together and each one paints from the
+  // saved copy first, then updates when the fresh answer arrives.
   useEffect(() => {
-    const loadProducts = async () => {
-      try {
-        const response = await api('/api/products?inherit=1');
-        setCatalog(normalizeProductCatalog(response));
-      } catch {
-        setCatalog(fallbackProducts);
-      } finally {
-        setLoading(false);
-      }
-    };
+    let alive = true;
 
-    loadProducts();
-  }, []);
+    apiCached('/api/products?inherit=1', (response) => {
+      if (!alive) return;
+      setCatalog(normalizeProductCatalog(response));
+      setLoading(false);
+    }).catch(() => {
+      if (!alive) return;
+      setCatalog(fallbackProducts);
+      setLoading(false);
+    });
 
-  useEffect(() => {
-    const loadCategoryVisibility = async () => {
-      try {
-        const response = await api('/api/category-visibility');
-        setCategoryVisibility(response || {});
-      } catch {
-        // ignore — defaults to every category visible
-      }
-    };
+    apiCached('/api/category-visibility', (response) => {
+      if (alive) setCategoryVisibility(response || {});
+    }).catch(() => {
+      // ignore — defaults to every category visible
+    });
 
-    loadCategoryVisibility();
-  }, []);
+    apiCached('/api/category-order', (response) => {
+      if (alive) setCategoryOrder(response?.order?.length ? response.order : DEFAULT_DEPARTMENTS);
+    }).catch(() => {
+      // ignore — falls back to the default Paint / Hardware / Paint Additives order
+    });
 
-  useEffect(() => {
-    const loadCategoryOrder = async () => {
-      try {
-        const response = await api('/api/category-order');
-        setCategoryOrder(response?.order?.length ? response.order : DEFAULT_DEPARTMENTS);
-      } catch {
-        // ignore — falls back to the default Paint / Hardware / Paint Additives order
-      }
-    };
-
-    loadCategoryOrder();
+    return () => { alive = false; };
   }, []);
 
   const visibleDepartments = useMemo(

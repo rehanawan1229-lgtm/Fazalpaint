@@ -9,7 +9,7 @@ import Reveal from '../components/motion/Reveal';
 import Carousel from '../components/Carousel';
 import ProductCard from '../components/ProductCard';
 import ProductCardSkeleton from '../components/ProductCardSkeleton';
-import { api } from '../lib/adminApi';
+import { apiCached } from '../lib/adminApi';
 import { normalizeProductCatalog } from '../lib/productCatalog';
 
 function Home() {
@@ -17,17 +17,17 @@ function Home() {
   const [loadingFeatured, setLoadingFeatured] = useState(true);
 
   useEffect(() => {
-    const loadFeatured = async () => {
-      try {
-        const response = await api('/api/products?inherit=1');
-        setFeatured(normalizeProductCatalog(response).slice(0, 10));
-      } catch {
-        setFeatured([]);
-      } finally {
-        setLoadingFeatured(false);
-      }
-    };
-    loadFeatured();
+    let alive = true;
+    apiCached('/api/products?inherit=1', (response) => {
+      if (!alive) return;
+      setFeatured(normalizeProductCatalog(response).slice(0, 10));
+      setLoadingFeatured(false);
+    }).catch(() => {
+      if (!alive) return;
+      setFeatured([]);
+      setLoadingFeatured(false);
+    });
+    return () => { alive = false; };
   }, []);
 
   return (

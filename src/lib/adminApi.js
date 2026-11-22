@@ -46,6 +46,63 @@ export async function api(path, options = {}) {
   return payload;
 }
 
+// ---------------------------------------------------------------------------
+// SPEED: instant-load helpers for PUBLIC data (products, content, links).
+// The Render free server can take 30-60 seconds to wake up. These helpers keep
+// the last good answer in the browser so the page paints immediately, then
+// refresh it quietly in the background.
+// ---------------------------------------------------------------------------
+const CACHE_PREFIX = 'apicache:v1:';
+const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function readCached(path) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + API_BASE + path);
+    if (!raw) return null;
+    const { t, d } = JSON.parse(raw);
+    return Date.now() - t < CACHE_MAX_AGE_MS ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCached(path, data) {
+  try {
+    localStorage.setItem(CACHE_PREFIX + API_BASE + path, JSON.stringify({ t: Date.now(), d: data }));
+  } catch {
+    // storage full or blocked — caching is only a bonus
+  }
+}
+
+// Calls onUpdate(data) once with the saved copy (if any) and once with fresh
+// data. Only rejects when there is NO saved copy and the network failed.
+export async function apiCached(path, onUpdate) {
+  const cached = readCached(path);
+  if (cached !== null) onUpdate?.(cached, true);
+  try {
+    const fresh = await api(path);
+    writeCached(path, fresh);
+    onUpdate?.(fresh, false);
+    return fresh;
+  } catch (error) {
+    if (cached !== null) return cached;
+    throw error;
+  }
+}
+
+// For code that just wants one value: returns the saved copy instantly (and
+// refreshes it in the background) or waits for the network if nothing is saved.
+export async function apiSwr(path) {
+  const cached = readCached(path);
+  if (cached !== null) {
+    api(path).then((fresh) => writeCached(path, fresh)).catch(() => {});
+    return cached;
+  }
+  const fresh = await api(path);
+  writeCached(path, fresh);
+  return fresh;
+}
+
 export async function uploadImage(file) {
   const formData = new FormData();
   formData.append('image', file);

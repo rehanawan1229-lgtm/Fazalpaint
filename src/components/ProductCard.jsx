@@ -69,6 +69,8 @@ function ProductCard({ product }) {
             <img
               src={imageUrl}
               alt={displayTitle}
+              loading="lazy"
+              decoding="async"
               className="h-full w-full rounded-[24px] object-cover transition-transform duration-500 ease-out group-hover:scale-110"
             />
           ) : (

@@ -3,7 +3,7 @@ import { useParams, Navigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, AlertCircle, Check } from 'lucide-react';
-import { api, resolveImageUrl } from '../lib/adminApi';
+import { apiSwr, resolveImageUrl } from '../lib/adminApi';
 import { useCart } from '../components/Cart/useCart';
 import { formatCurrency } from '../lib/formatCurrency';
 import Accordion from '../components/Accordion';
@@ -23,7 +23,7 @@ function ProductDetail() {
   useEffect(() => {
     const loadProduct = async () => {
       try {
-        const products = await api('/api/products?inherit=1');
+        const products = await apiSwr('/api/products?inherit=1');
         const current = products.find((p) => String(p.id) === String(productId));
         
         if (current && current.parent_product_id) {
@@ -172,6 +172,7 @@ function ProductDetail() {
               <img
                 src={resolveImageUrl(product.image_url || product.image)}
                 alt={product.name}
+                decoding="async"
                 className="h-64 w-full object-cover rounded-2xl transition-transform duration-500 ease-out hover:scale-105 sm:h-96"
               />
             </div>

@@ -6,7 +6,7 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     },
     {
-      "source": "/(hero-banner.webp|hero-banner-mobile.webp|logo.png|Icon.png)",
+      "source": "/(hero-banner.webp|hero-banner-mobile.webp|logo.png|logo.webp|Icon.png)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }]
     }
   ],

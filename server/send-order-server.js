@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import compression from 'compression';
 
 // FIX: previously this was just dotenv.config(), which only looks for a
 // ".env" file in the CURRENT WORKING DIRECTORY (wherever "node ..." was
@@ -36,7 +37,17 @@ if (envPath) {
 }
 
 const app = express();
+// SPEED: gzip/brotli-style compression of every JSON/HTML/JS response.
+// "compression" was already in package.json but never switched on, so every
+// /api/products response went out at full size.
+app.use(compression());
 app.use(cors());
+// SPEED: lets the browser/CDN keep public, rarely-changing API answers for a
+// few seconds instead of asking the (sleepy) server every single time.
+const publicCache = (seconds = 15) => (req, res, next) => {
+  res.set('Cache-Control', `public, max-age=${seconds}, stale-while-revalidate=${seconds * 4}`);
+  next();
+};
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -778,8 +789,29 @@ const upload = multer({
 
 initDatabase();
 
-app.use('/uploads', express.static(uploadsDir));
-app.use(express.static(publicDir));
+// SPEED: indexes for the columns the app filters/sorts by. Each one is wrapped
+// separately so a missing column on an older database can never stop startup.
+[
+  'CREATE INDEX IF NOT EXISTS idx_products_created ON products(created_at DESC, id DESC)',
+  'CREATE INDEX IF NOT EXISTS idx_products_parent ON products(parent_product_id)',
+  'CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id)',
+  'CREATE INDEX IF NOT EXISTS idx_tickets_user ON support_tickets(user_id, created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS idx_quotes_user ON quotation_requests(user_id, created_at DESC)',
+  'CREATE INDEX IF NOT EXISTS idx_cgp_product ON catalog_group_products(product_id)'
+].forEach((sql) => {
+  try { db.exec(sql); } catch (err) { console.warn('Index skipped:', err.message); }
+});
+
+// SPEED: uploaded photos have unique timestamped names, so they can be cached
+// by the browser for a long time. Before, every visit re-downloaded them.
+app.use('/uploads', express.static(uploadsDir, { maxAge: '30d', immutable: true }));
+app.use(express.static(publicDir, { maxAge: '1d' }));
+
+// Tiny endpoint for a free uptime pinger (UptimeRobot / cron-job.org) so the
+// Render free server does not fall asleep. Does no database work.
+app.get('/health', (req, res) => res.json({ ok: true, time: Date.now() }));
 
 app.post('/send-order', async (req, res) => {
   const order = req.body;
@@ -1373,7 +1405,7 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-app.get('/api/content', (req, res) => {
+app.get('/api/content', publicCache(15), (req, res) => {
   const rows = db.prepare('SELECT key, value FROM site_content ORDER BY key').all();
   const payload = Object.fromEntries(rows.map((row) => [row.key, row.value]));
   return res.json(payload);
@@ -1444,7 +1476,7 @@ function getCategoryVisibilityPayload() {
 // Public: which departments are currently visible — powers the category
 // pill row on the customer-facing Products page (a hidden department's
 // pill disappears entirely, it doesn't just show an empty list).
-app.get('/api/category-visibility', (req, res) => {
+app.get('/api/category-visibility', publicCache(15), (req, res) => {
   return res.json(getCategoryVisibilityPayload());
 });
 
@@ -1510,7 +1542,7 @@ function saveCategoryOrderList(order) {
 
 // Public: display order for the category pill row on the customer-facing
 // Products page.
-app.get('/api/category-order', (req, res) => {
+app.get('/api/category-order', publicCache(15), (req, res) => {
   return res.json({ order: getCategoryOrderList() });
 });
 
@@ -1532,6 +1564,11 @@ app.put('/api/admin/category-order', authenticate, requireAdmin, (req, res) => {
 });
 
 app.get('/api/products', (req, res) => {
+  // SPEED: only the public storefront call (?inherit=1) is cached; the admin
+  // editor calls this with no params and must always see live data.
+  if (req.query.inherit === '1') {
+    res.set('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+  }
   // is_out_of_stock is derived from the existing in_stock column at read time
   // (never stored) so the two can never drift out of sync — see the
   // "MANUAL PRODUCT GROUPS" section below for why we didn't add a second
@@ -1889,7 +1926,7 @@ app.post('/api/assistant', async (req, res) => {
 
 // Public: only platforms the admin has left visible, as a simple
 // { platform: url } map (unchanged shape so the public footer keeps working).
-app.get('/api/social-links', (req, res) => {
+app.get('/api/social-links', publicCache(30), (req, res) => {
   try {
     const rows = db.prepare('SELECT platform, url FROM social_links WHERE visible = 1 ORDER BY platform').all();
     const payload = Object.fromEntries(rows.map((row) => [row.platform, row.url]));

@@ -26,6 +26,8 @@ function ProductCard({ product }) {
           <img
             src={resolveImageUrl(product.image_url)}
             alt={product.name}
+            loading="lazy"
+            decoding="async"
             className={`h-full w-full object-cover ${isOutOfStock ? 'opacity-50 grayscale' : ''}`}
           />
         ) : (
