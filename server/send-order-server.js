@@ -183,7 +183,17 @@ async function sendOtpEmail(email, code, { purpose, name }) {
   }
 }
 
-async function notifyAdminAction(action, details) {
+// SPEED: the admin "someone logged in / signed up" email is only a courtesy
+// notice. It used to be awaited, so every login and signup waited for the SMTP
+// server (up to 20+ seconds on Render free) before the customer got an answer.
+// Now it is sent in the background and the customer is answered immediately.
+function notifyAdminAction(action, details) {
+  notifyAdminActionNow(action, details).catch((err) => {
+    console.error(`Admin notification failed (${action}):`, err);
+  });
+}
+
+async function notifyAdminActionNow(action, details) {
   const text = `Action: ${action}\nDate: ${new Date().toISOString()}\nName: ${details.name || 'N/A'}\nEmail: ${details.email || 'N/A'}\nPhone: ${details.phone || 'N/A'}\nRole: ${details.role || 'customer'}`;
 
   if (!hasSmtpConfigured() || !transporter) {
