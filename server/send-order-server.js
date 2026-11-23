@@ -843,14 +843,13 @@ app.post('/send-order', async (req, res) => {
       text: formatOrderEmail(order)
     };
 
-    try {
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Order email sent:', info.messageId || info);
-      return res.json({ message: 'Order sent', info });
-    } catch (emailErr) {
-      console.error('SMTP send failed, order saved locally:', emailErr);
-      return res.json({ message: 'Order received and saved locally. SMTP delivery failed.', error: (emailErr && emailErr.message) || String(emailErr) });
-    }
+    // SPEED: the order is already saved above. The email to the shop is sent
+    // in the background so the customer's checkout does not wait on SMTP
+    // (which can take 10-20+ seconds on the Render free plan).
+    transporter.sendMail(mailOptions)
+      .then((info) => console.log('Order email sent:', info.messageId || info))
+      .catch((emailErr) => console.error('SMTP send failed, order saved locally:', emailErr));
+    return res.json({ message: 'Order sent' });
   } catch (err) {
     console.error('Error processing order:', err);
     return res.status(500).json({ error: err.message || 'Failed to process order' });

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { HelmetProvider, Helmet } from 'react-helmet-async';
@@ -53,6 +53,26 @@ function AnimatedRoutes() {
 }
 
 function App() {
+  // SPEED: once the first screen is ready, quietly download the other pages in
+  // the background so clicking Products / Checkout / Account feels instant.
+  useEffect(() => {
+    const preload = () => {
+      import('./pages/Products');
+      import('./pages/ProductDetail');
+      import('./pages/Checkout');
+      import('./pages/Contact');
+      import('./pages/About');
+      if (localStorage.getItem('adminToken')) import('./pages/Account');
+    };
+    const id = 'requestIdleCallback' in window
+      ? window.requestIdleCallback(preload, { timeout: 4000 })
+      : window.setTimeout(preload, 2500);
+    return () => {
+      if ('cancelIdleCallback' in window) window.cancelIdleCallback(id);
+      else window.clearTimeout(id);
+    };
+  }, []);
+
   return (
     <HelmetProvider>
       <Helmet>

@@ -11,6 +11,7 @@ export function getApiBaseUrl() {
 export function logoutAdmin() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('adminToken');
+    localStorage.removeItem('authUserCache');
   }
 }
 
@@ -103,9 +104,33 @@ export async function apiSwr(path) {
   return fresh;
 }
 
+// SPEED: phone/camera photos are often 3-5 MB. Shrinking them to a sensible
+// size (max 1200px, WebP) BEFORE upload makes uploads fast and, more
+// importantly, makes every product page load faster for customers forever.
+// If anything goes wrong the original file is uploaded unchanged.
+async function compressImage(file, maxSide = 1200, quality = 0.82) {
+  try {
+    if (!file || !/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 200 * 1024) return file;
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
+    if (!blob || blob.size >= file.size) return file;
+    const baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+    return new File([blob], `${baseName}.webp`, { type: 'image/webp' });
+  } catch {
+    return file;
+  }
+}
+
 export async function uploadImage(file) {
   const formData = new FormData();
-  formData.append('image', file);
+  formData.append('image', await compressImage(file));
   return api('/api/admin/upload', { method: 'POST', body: formData });
 }
 

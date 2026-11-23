@@ -8,6 +8,9 @@
     <!-- SPEED: fonts are requested from here (early, in parallel) instead of
          from an @import inside the CSS file, which only started the font
          download AFTER the CSS finished loading. -->
+    <!-- SPEED: open the connection to the backend (Render) right away so the
+         first API call does not pay for the handshake. -->
+    <link rel="preconnect" href="https://fazalpaint-backend.onrender.com" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
