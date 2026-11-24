@@ -125,7 +125,7 @@ function Hero() {
         initial={{ opacity: 0, scale: 1.04 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-        className="relative w-full overflow-hidden aspect-[3/2] sm:aspect-auto sm:h-[calc(100vh-88px)] sm:min-h-[420px]"
+        className="relative w-full overflow-hidden aspect-[3/2] sm:aspect-auto sm:h-[calc(100dvh-72px)] sm:min-h-[420px]"
       >
         {isAdmin && editMode ? (
           <div className="absolute left-4 top-4 z-20 flex flex-wrap items-center gap-2 rounded-full border border-dashed border-[#F5B942] bg-[#4A3527]/80 px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#FFF9F4] backdrop-blur">

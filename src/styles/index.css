@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap');
+/* Fonts are loaded from index.html (preconnect + <link>), so no render-blocking @import here. */
 
 :root {
   color-scheme: light;
@@ -54,11 +54,19 @@ body {
 
 html {
   scroll-behavior: smooth;
+  /* Reserve the scrollbar's space so the page does not jump sideways when a page
+     becomes long enough to need a scrollbar (loading -> loaded). */
+  scrollbar-gutter: stable;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
+  /* Never let anything push the page sideways on phones (clip keeps sticky working). */
+  overflow-x: clip;
   background: var(--color-bg-light);
   color: var(--color-text-primary);
   font-family: var(--font-body);
@@ -68,9 +76,14 @@ body {
   box-sizing: border-box;
 }
 
+/* STABILITY FIX: this used to be "transition: all" on EVERY button and link. That also
+   animated transforms and sizes, so it fought with the framer-motion animations and made
+   buttons/links wobble. Now only colours, borders, shadows and opacity ease. */
 button,
 a {
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease, opacity 0.2s ease;
+  touch-action: manipulation;
 }
 
 img {
@@ -157,7 +170,8 @@ select {
 /* Horizontal swipe carousels: hide the scrollbar but keep native momentum
    scrolling / snap on mobile. */
 .snap-scroll {
-  scroll-snap-type: x mandatory;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -168,6 +182,16 @@ select {
 
 .snap-item {
   scroll-snap-align: start;
+}
+
+/* iPhones zoom the whole page when you tap a text box whose font is under 16px,
+   and that zoom looks like a glitch. Keep form text at 16px on phones. */
+@media (max-width: 640px) {
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 
 /* ---------------------------------------------------------------------- */

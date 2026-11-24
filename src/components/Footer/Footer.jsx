@@ -1,9 +1,47 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { MapPin, Phone, Clock3, MessageSquare, Edit2, Check, X, Instagram, Facebook, Youtube, Music2, Eye, EyeOff } from 'lucide-react';
 import { api, apiCached } from '../../lib/adminApi';
 import { useAdminAuth } from '../../contexts/AdminAuthContext';
+import { BRANCHES, SHOP } from '../../data/shopInfo';
+
+// Every page of the website is reachable from the footer.
+const SHOP_LINKS = [
+  { to: '/', label: 'Home' },
+  { to: '/products', label: 'Products' },
+  { to: '/brands', label: 'Brands' },
+  { to: '/branches', label: 'Branches' }
+];
+const HELP_LINKS = [
+  { to: '/track-order', label: 'Track order' },
+  { to: '/faq', label: 'FAQ' },
+  { to: '/delivery', label: 'Delivery & payment' },
+  { to: '/returns', label: 'Returns' },
+  { to: '/contact', label: 'Contact' }
+];
+const COMPANY_LINKS = [
+  { to: '/about', label: 'About us' },
+  { to: '/privacy', label: 'Privacy policy' },
+  { to: '/terms', label: 'Terms & conditions' }
+];
+const ADMIN_LINKS = [
+  { to: '/admin/products', label: 'Products' },
+  { to: '/admin/orders', label: 'Orders' },
+  { to: '/admin/support', label: 'Support' },
+  { to: '/admin/bulk-orders', label: 'Bulk orders' },
+  { to: '/admin/tools', label: 'Tools' }
+];
+
+const footerLinkClass = 'block py-2 transition-colors hover:text-white';
+
+function FooterGroup({ title, children }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#F5B942]">{title}</p>
+      <ul className="mt-2 text-sm text-[#F3E4D4]">{children}</ul>
+    </div>
+  );
+}
 
 // FIX: Pinterest replaced with YouTube (matches how the shop actually
 // promotes itself). Icons added per platform for a more polished footer.
@@ -16,7 +54,7 @@ const PLATFORM_META = {
 const PLATFORM_ORDER = ['instagram', 'facebook', 'tiktok', 'youtube'];
 
 function Footer() {
-  const { isAdmin, editMode } = useAdminAuth();
+  const { isAdmin, editMode, user } = useAdminAuth();
   // Public-facing list: only platforms the admin has left visible.
   const [socialLinks, setSocialLinks] = useState({});
   // Admin-only full list (includes hidden platforms) so edit mode can
@@ -115,142 +153,141 @@ function Footer() {
 
   return (
     <footer className="border-t border-border bg-primary text-bg-light">
-      <motion.div
-        className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-3 lg:gap-8"
-        initial={{ opacity: 0, y: 24 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.2 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#F5B942]">Fazal Paint Hardware</p>
-          <h2 className="mt-4 text-2xl font-semibold">Bannu Road, Opposite Kotli Imam Hussain</h2>
-          <p className="mt-4 max-w-md text-sm text-[#F3E4D4]">Fazal Paint Hardware and Trolley House — Bannu Road, Opposite Kotli Imam Hussain, Dera Ismail Khan. Trusted since 1982.</p>
-        </div>
-
-        <div className="grid gap-2 sm:hidden">
-          {/* Mobile: native <details> accordion — zero extra JS state,
-              free keyboard/accessibility support, and it means the footer
-              doesn't dump four always-open lists into one long scroll. */}
-          <details className="group border-b border-[#5C4433] py-1">
-            <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between text-sm font-semibold uppercase tracking-[0.24em] text-[#F5B942]">
-              Quick links
-              <span className="text-[#F3E4D4] transition-transform group-open:rotate-180">⌄</span>
-            </summary>
-            <ul className="space-y-3 pb-4 pt-2 text-sm text-[#F3E4D4]">
-              <li><Link to="/" className="block min-h-[44px] py-1 hover:text-white transition-colors">Home</Link></li>
-              <li><Link to="/products" className="block min-h-[44px] py-1 hover:text-white transition-colors">Products</Link></li>
-              <li><Link to="/about" className="block min-h-[44px] py-1 hover:text-white transition-colors">About</Link></li>
-              <li><Link to="/contact" className="block min-h-[44px] py-1 hover:text-white transition-colors">Contact</Link></li>
-            </ul>
-          </details>
-          <details className="group border-b border-[#5C4433] py-1">
-            <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between text-sm font-semibold uppercase tracking-[0.24em] text-[#F5B942]">
-              Contact
-              <span className="text-[#F3E4D4] transition-transform group-open:rotate-180">⌄</span>
-            </summary>
-            <ul className="space-y-4 pb-4 pt-2 text-sm text-[#F3E4D4]">
-              <li className="flex items-start gap-2"><MapPin size={18} className="mt-0.5 flex-shrink-0" /><span>Bannu Road, Opposite Kotli Imam Hussain, D.I. Khan</span></li>
-              <li className="flex items-start gap-2"><Phone size={18} className="mt-0.5 flex-shrink-0" /><span>+92 342 9085556</span></li>
-              <li className="flex items-start gap-2"><MessageSquare size={18} className="mt-0.5 flex-shrink-0" /><span>WhatsApp available</span></li>
-              <li className="flex items-start gap-2"><Clock3 size={18} className="mt-0.5 flex-shrink-0" /><span>Mon–Sun 6am–6pm</span></li>
-            </ul>
-          </details>
-        </div>
-
-        <div className="hidden gap-6 sm:grid sm:grid-cols-2">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+        <div className="grid gap-10 lg:grid-cols-[1.15fr_2fr_1fr] lg:gap-12">
+          {/* Shop details */}
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#F5B942]">Quick links</p>
-            <ul className="mt-4 space-y-3 text-sm text-[#F3E4D4]">
-              <li><Link to="/" className="hover:text-white transition-colors">Home</Link></li>
-              <li><Link to="/products" className="hover:text-white transition-colors">Products</Link></li>
-              <li><Link to="/about" className="hover:text-white transition-colors">About</Link></li>
-              <li><Link to="/contact" className="hover:text-white transition-colors">Contact</Link></li>
-            </ul>
-          </div>
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#F5B942]">Contact</p>
-            <ul className="mt-4 space-y-4 text-sm text-[#F3E4D4]">
-              <li className="flex items-start gap-2"><MapPin size={18} className="mt-0.5 flex-shrink-0" /><span>Bannu Road, Opposite Kotli Imam Hussain, D.I. Khan</span></li>
-              <li className="flex items-start gap-2"><Phone size={18} className="mt-0.5 flex-shrink-0" /><span>+92 342 9085556</span></li>
-              <li className="flex items-start gap-2"><MessageSquare size={18} className="mt-0.5 flex-shrink-0" /><span>WhatsApp available</span></li>
-              <li className="flex items-start gap-2"><Clock3 size={18} className="mt-0.5 flex-shrink-0" /><span>Mon–Sun 6am–6pm</span></li>
-            </ul>
-          </div>
-        </div>
-
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#F5B942]">Follow us</p>
-          <ul className="mt-4 space-y-3 text-sm">
-            {platformsToRender.map(({ platform, url, visible }) => {
-              const meta = PLATFORM_META[platform];
-              const Icon = meta?.icon;
-              const linkUrl = url || 'https://example.com';
-              return (
-                <li key={platform} className="flex items-center justify-between gap-2 group">
-                  {editingSocial === platform ? (
-                    <div className="flex w-full gap-2">
-                      <input
-                        type="text"
-                        value={editUrl}
-                        onChange={(e) => setEditUrl(e.target.value)}
-                        placeholder="Enter URL"
-                        className="flex-1 rounded border border-[#F5B942] bg-[#3A2A1D] px-2 py-1 text-xs text-white"
-                      />
-                      <button onClick={() => handleSaveSocial(platform)} disabled={loading} className="rounded p-1 transition-colors hover:bg-[#5C4433]">
-                        <Check size={16} className="text-[#4E9C79]" />
-                      </button>
-                      <button onClick={handleCancelEdit} className="rounded p-1 transition-colors hover:bg-[#5C4433]">
-                        <X size={16} className="text-[#D64545]" />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <a
-                        href={linkUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center gap-2 transition-colors ${visible ? 'text-[#F3E4D4] hover:text-white' : 'text-[#A08D7D] line-through'}`}
-                      >
-                        {Icon ? <Icon size={16} /> : null}
-                        {meta?.label || platform}
-                        {!visible && isAdmin && editMode ? <span className="text-[10px] uppercase tracking-wide text-[#D9A653]">(hidden)</span> : null}
-                      </a>
-                      {isAdmin && editMode && (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleVisibility(platform, !visible)}
-                            disabled={togglingPlatform === platform}
-                            title={visible ? 'Hide from public footer' : 'Show on public footer'}
-                            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-[#5C4433] active:scale-90"
-                          >
-                            {visible ? <Eye size={16} className="text-[#F5B942]" /> : <EyeOff size={16} className="text-[#D9A653]" />}
-                          </button>
-                          <button type="button" onClick={() => handleEditSocial(platform, url)} className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-[#5C4433] active:scale-90">
-                            <Edit2 size={16} className="text-[#F5B942]" />
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#F5B942]">Fazal Paint Hardware</p>
+            <h2 className="mt-3 text-2xl font-semibold">Trusted since 1982</h2>
+            <p className="mt-3 max-w-md text-sm text-[#F3E4D4]">
+              Fazal Paint Hardware and Trolley House, Bannu Road, Dera Ismail Khan. Paints, hardware, tools and trolleys.
+            </p>
+            <ul className="mt-5 space-y-4 text-sm text-[#F3E4D4]">
+              {BRANCHES.map((branch) => (
+                <li key={branch.id} className="flex items-start gap-2">
+                  <MapPin size={18} className="mt-0.5 flex-shrink-0" />
+                  <span>
+                    {branch.name}: {branch.landmark}
+                    <br />
+                    <a href={branch.mobileHref} className="hover:text-white">{branch.mobile}</a>
+                    {' · '}
+                    <a href={branch.landlineHref} className="hover:text-white">{branch.landline}</a>
+                  </span>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+              <li className="flex items-start gap-2">
+                <Clock3 size={18} className="mt-0.5 flex-shrink-0" />
+                <span>{SHOP.hours}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <MessageSquare size={18} className="mt-0.5 flex-shrink-0" />
+                <a href={SHOP.whatsappLink} target="_blank" rel="noreferrer" className="hover:text-white">WhatsApp {SHOP.whatsappDisplay}</a>
+              </li>
+            </ul>
+          </div>
+
+          {/* All pages */}
+          <div className="grid grid-cols-2 content-start gap-x-6 gap-y-8 sm:grid-cols-3">
+            <FooterGroup title="Shop">
+              {SHOP_LINKS.map((item) => (
+                <li key={item.to}><Link to={item.to} className={footerLinkClass}>{item.label}</Link></li>
+              ))}
+            </FooterGroup>
+            <FooterGroup title="Help">
+              {HELP_LINKS.map((item) => (
+                <li key={item.to}><Link to={item.to} className={footerLinkClass}>{item.label}</Link></li>
+              ))}
+            </FooterGroup>
+            <FooterGroup title="Company">
+              {COMPANY_LINKS.map((item) => (
+                <li key={item.to}><Link to={item.to} className={footerLinkClass}>{item.label}</Link></li>
+              ))}
+            </FooterGroup>
+            <FooterGroup title="My account">
+              {user ? (
+                <li><Link to="/account" className={footerLinkClass}>My account</Link></li>
+              ) : (
+                <li>
+                  <button type="button" onClick={() => window.dispatchEvent(new Event('open-auth-modal'))} className={`${footerLinkClass} w-full text-left`}>
+                    Login / Sign up
+                  </button>
+                </li>
+              )}
+              <li><Link to="/checkout" className={footerLinkClass}>Checkout</Link></li>
+            </FooterGroup>
+            {isAdmin ? (
+              <FooterGroup title="Admin">
+                {ADMIN_LINKS.map((item) => (
+                  <li key={item.to}><Link to={item.to} className={footerLinkClass}>{item.label}</Link></li>
+                ))}
+              </FooterGroup>
+            ) : null}
+          </div>
+
+          {/* Social */}
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#F5B942]">Follow us</p>
+            <ul className="mt-4 space-y-3 text-sm">
+              {platformsToRender.map(({ platform, url, visible }) => {
+                const meta = PLATFORM_META[platform];
+                const Icon = meta?.icon;
+                const linkUrl = url || 'https://example.com';
+                return (
+                  <li key={platform} className="flex items-center justify-between gap-2 group">
+                    {editingSocial === platform ? (
+                      <div className="flex w-full gap-2">
+                        <input
+                          type="text"
+                          value={editUrl}
+                          onChange={(e) => setEditUrl(e.target.value)}
+                          placeholder="Enter URL"
+                          className="flex-1 rounded border border-[#F5B942] bg-[#3A2A1D] px-2 py-1 text-xs text-white"
+                        />
+                        <button onClick={() => handleSaveSocial(platform)} disabled={loading} className="rounded p-1 transition-colors hover:bg-[#5C4433]">
+                          <Check size={16} className="text-[#4E9C79]" />
+                        </button>
+                        <button onClick={handleCancelEdit} className="rounded p-1 transition-colors hover:bg-[#5C4433]">
+                          <X size={16} className="text-[#D64545]" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <a
+                          href={linkUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-2 py-1.5 transition-colors ${visible ? 'text-[#F3E4D4] hover:text-white' : 'text-[#A08D7D] line-through'}`}
+                        >
+                          {Icon ? <Icon size={16} /> : null}
+                          {meta?.label || platform}
+                          {!visible && isAdmin && editMode ? <span className="text-[10px] uppercase tracking-wide text-[#D9A653]">(hidden)</span> : null}
+                        </a>
+                        {isAdmin && editMode && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleVisibility(platform, !visible)}
+                              disabled={togglingPlatform === platform}
+                              title={visible ? 'Hide from public footer' : 'Show on public footer'}
+                              className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-[#5C4433] active:scale-90"
+                            >
+                              {visible ? <Eye size={16} className="text-[#F5B942]" /> : <EyeOff size={16} className="text-[#D9A653]" />}
+                            </button>
+                            <button type="button" onClick={() => handleEditSocial(platform, url)} className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-[#5C4433] active:scale-90">
+                              <Edit2 size={16} className="text-[#F5B942]" />
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
-      </motion.div>
-      <nav aria-label="Help and policies" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 border-t border-[#3A2A1D] pt-6 text-xs text-[#DCC9B0]">
-        <Link to="/brands" className="py-2 hover:text-white transition-colors">Brands</Link>
-        <Link to="/branches" className="py-2 hover:text-white transition-colors">Branches</Link>
-        <Link to="/track-order" className="py-2 hover:text-white transition-colors">Track order</Link>
-        <Link to="/faq" className="py-2 hover:text-white transition-colors">FAQ</Link>
-        <Link to="/delivery" className="py-2 hover:text-white transition-colors">Delivery &amp; payment</Link>
-        <Link to="/returns" className="py-2 hover:text-white transition-colors">Returns</Link>
-        <Link to="/privacy" className="py-2 hover:text-white transition-colors">Privacy</Link>
-        <Link to="/terms" className="py-2 hover:text-white transition-colors">Terms</Link>
-      </nav>
-      <div className="py-6 text-center text-xs text-[#DCC9B0]">
+      </div>
+      <div className="border-t border-[#3A2A1D] px-4 py-6 text-center text-xs text-[#DCC9B0]">
         © {new Date().getFullYear()} Fazal Paint Hardware and Trolley House. All rights reserved.
       </div>
     </footer>

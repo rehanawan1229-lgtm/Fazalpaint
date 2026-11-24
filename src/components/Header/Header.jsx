@@ -9,8 +9,8 @@ import AuthModal from '../AuthModal';
 const navItems = [
   { label: 'Home', to: '/' },
   { label: 'Products', to: '/products' },
-  { label: 'Brands', to: '/brands', extra: true },
-  { label: 'Track Order', to: '/track-order', extra: true },
+  { label: 'Brands', to: '/brands' },
+  { label: 'Track Order', to: '/track-order' },
   { label: 'About', to: '/about' },
   { label: 'Contact', to: '/contact' }
 ];
@@ -65,10 +65,14 @@ function Header() {
   };
 
   return (
-    <header className={`sticky top-0 z-40 transition-all duration-300 ${isScrolled ? 'bg-bg-light/95 shadow-soft backdrop-blur-sm' : 'bg-transparent'} `}>
-      <div className={`mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 transition-all duration-300 ${isScrolled ? 'py-2.5' : 'py-4'}`}>
-        <Link to="/" className="flex items-center gap-3 text-sm font-semibold text-text-primary transition-transform hover:scale-[1.02]">
-          <div className={`flex items-center justify-center overflow-hidden rounded-2xl bg-bg-light border border-border transition-all duration-300 ${isScrolled ? 'h-10 w-10' : 'h-14 w-14'}`}>
+    // STABILITY FIX: the header used to SHRINK when you scrolled (smaller padding and
+    // a smaller logo). Because it sits in the page flow, that moved everything below it
+    // up and down, which made the page shake near the top. It now keeps ONE fixed height
+    // (72px) and only its background/shadow change, so nothing can jump.
+    <header className={`sticky top-0 z-40 transition-[background-color,box-shadow] duration-300 ${isScrolled ? 'bg-bg-light shadow-soft' : 'bg-bg-light/80'}`}>
+      <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
+        <Link to="/" className="flex min-w-0 items-center gap-3 text-sm font-semibold text-text-primary">
+          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-bg-light">
             {logoLoaded ? (
               <img
                 src="/logo.webp"
@@ -84,19 +88,19 @@ function Header() {
               </div>
             )}
           </div>
-          <div className="hidden min-w-0 flex-col sm:flex">
+          <div className="hidden min-w-0 flex-col sm:flex lg:hidden xl:flex">
             <span className="text-base normal-case">Fazal Paint Hardware</span>
             <span className="text-xs text-text-secondary">Since 1982, D.I. Khan</span>
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-6 md:flex">
+        <nav className="hidden items-center gap-5 lg:flex xl:gap-7">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `nav-underline text-sm font-semibold ${item.extra ? 'hidden lg:block' : ''} ${isActive ? 'is-active text-accent' : 'text-text-primary hover:text-accent'}`
+                `nav-underline whitespace-nowrap text-sm font-semibold ${isActive ? 'is-active text-accent' : 'text-text-primary hover:text-accent'}`
               }
             >
               {item.label}
@@ -129,7 +133,7 @@ function Header() {
             <button
               type="button"
               onClick={logout}
-              className="hidden items-center gap-2 rounded-xl border border-border bg-bg-light px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-alt sm:flex"
+              className="hidden items-center gap-2 rounded-xl border border-border bg-bg-light px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-alt lg:flex"
             >
               <UserCircle2 size={18} />
               Logout
@@ -139,14 +143,14 @@ function Header() {
               <button
                 type="button"
                 onClick={openLogin}
-                className="hidden rounded-xl border border-border bg-bg-light px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-alt sm:block"
+                className="hidden rounded-xl border border-border bg-bg-light px-3 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-surface-alt lg:block"
               >
                 Login
               </button>
               <button
                 type="button"
                 onClick={openSignup}
-                className="hidden rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover sm:block"
+                className="hidden rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover lg:block"
               >
                 Sign Up
               </button>
@@ -155,7 +159,7 @@ function Header() {
           <button
             type="button"
             onClick={() => window.open('https://wa.me/923429085556', '_blank')}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-white transition-all hover:bg-primary-light hover:scale-105 active:scale-95 focus:outline-none"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-white transition-colors hover:bg-primary-light active:scale-95 focus:outline-none"
             aria-label="WhatsApp contact"
           >
             <MessageSquare size={20} />
@@ -187,7 +191,7 @@ function Header() {
           <button
             type="button"
             onClick={() => setMobileOpen((value) => !value)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-bg-light border border-border text-text-primary md:hidden"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-bg-light border border-border text-text-primary lg:hidden"
             aria-label="Open navigation menu"
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -202,7 +206,7 @@ function Header() {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden border-t border-border bg-bg-light md:hidden"
+            className="max-h-[calc(100dvh-72px)] overflow-y-auto overscroll-contain border-t border-border bg-bg-light lg:hidden"
           >
             <div className="space-y-3 px-4 py-5">
               {navItems.map((item) => (

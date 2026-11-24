@@ -54,11 +54,13 @@ function ProductCard({ product }) {
   const displayTitle = product.sub_category || product.name;
 
   return (
-    <motion.article
-      whileHover={{ y: -8 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-      className="group overflow-hidden rounded-3xl border border-border bg-surface shadow-soft transition-shadow duration-300 hover:shadow-lift"
-    >
+    // STABILITY FIX: the whole card used to move up 8px on hover (framer-motion). When
+    // the mouse sat near the bottom edge the card moved away from the pointer, hover
+    // ended, the card dropped back, hover started again... and the card shook.
+    // Now the outer wrapper never moves (it owns the hover area) and only the
+    // inner card lifts, and only on devices that really have a mouse.
+    <div className="group h-full">
+    <article className="h-full overflow-hidden rounded-3xl border border-border bg-surface shadow-soft transition-[transform,box-shadow] duration-300 [@media(hover:hover)]:group-hover:-translate-y-2 [@media(hover:hover)]:group-hover:shadow-lift">
       <Link to={`/products/${product.id}`} className="block">
         <div className="aspect-[4/3] overflow-hidden bg-surface-alt p-2.5 sm:p-4 relative">
           <button
@@ -154,7 +156,8 @@ function ProductCard({ product }) {
           </div>
         )}
       </div>
-    </motion.article>
+    </article>
+    </div>
   );
 }
 

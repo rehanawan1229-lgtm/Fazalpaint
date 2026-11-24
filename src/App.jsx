@@ -99,7 +99,7 @@ function App() {
       <AdminAuthProvider>
         <WishlistProvider>
         <CartProvider>
-          <div className="min-h-screen bg-[var(--color-bg-light)] text-[var(--color-text-primary)]">
+          <div className="min-h-[100dvh] bg-[var(--color-bg-light)] text-[var(--color-text-primary)]">
             <Header />
             <main>
               <Suspense fallback={<div className="min-h-[60vh]" aria-busy="true" />}>
