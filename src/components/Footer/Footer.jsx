@@ -240,7 +240,17 @@ function Footer() {
           </ul>
         </div>
       </motion.div>
-      <div className="border-t border-[#3A2A1D] py-6 text-center text-xs text-[#DCC9B0]">
+      <nav aria-label="Help and policies" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 border-t border-[#3A2A1D] pt-6 text-xs text-[#DCC9B0]">
+        <Link to="/brands" className="py-2 hover:text-white transition-colors">Brands</Link>
+        <Link to="/branches" className="py-2 hover:text-white transition-colors">Branches</Link>
+        <Link to="/track-order" className="py-2 hover:text-white transition-colors">Track order</Link>
+        <Link to="/faq" className="py-2 hover:text-white transition-colors">FAQ</Link>
+        <Link to="/delivery" className="py-2 hover:text-white transition-colors">Delivery &amp; payment</Link>
+        <Link to="/returns" className="py-2 hover:text-white transition-colors">Returns</Link>
+        <Link to="/privacy" className="py-2 hover:text-white transition-colors">Privacy</Link>
+        <Link to="/terms" className="py-2 hover:text-white transition-colors">Terms</Link>
+      </nav>
+      <div className="py-6 text-center text-xs text-[#DCC9B0]">
         © {new Date().getFullYear()} Fazal Paint Hardware and Trolley House. All rights reserved.
       </div>
     </footer>

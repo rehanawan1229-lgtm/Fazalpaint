@@ -15,6 +15,15 @@ const Contact = lazy(() => import('./pages/Contact'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const Account = lazy(() => import('./pages/Account'));
 const Invoice = lazy(() => import('./pages/Invoice'));
+const Brands = lazy(() => import('./pages/Brands'));
+const TrackOrder = lazy(() => import('./pages/TrackOrder'));
+const Branches = lazy(() => import('./pages/Branches'));
+const Faq = lazy(() => import('./pages/Faq'));
+const Delivery = lazy(() => import('./pages/Delivery'));
+const Returns = lazy(() => import('./pages/Returns'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 const AdminProducts = lazy(() => import('./pages/AdminProducts'));
 const AdminOrders = lazy(() => import('./pages/AdminOrders'));
 const AdminSupport = lazy(() => import('./pages/AdminSupport'));
@@ -42,11 +51,20 @@ function AnimatedRoutes() {
         <Route path="/account/invoice/:orderId" element={<PageTransition><Invoice /></PageTransition>} />
         <Route path="/about" element={<PageTransition><About /></PageTransition>} />
         <Route path="/contact" element={<PageTransition><Contact /></PageTransition>} />
+        <Route path="/brands" element={<PageTransition><Brands /></PageTransition>} />
+        <Route path="/track-order" element={<PageTransition><TrackOrder /></PageTransition>} />
+        <Route path="/branches" element={<PageTransition><Branches /></PageTransition>} />
+        <Route path="/faq" element={<PageTransition><Faq /></PageTransition>} />
+        <Route path="/delivery" element={<PageTransition><Delivery /></PageTransition>} />
+        <Route path="/returns" element={<PageTransition><Returns /></PageTransition>} />
+        <Route path="/privacy" element={<PageTransition><Privacy /></PageTransition>} />
+        <Route path="/terms" element={<PageTransition><Terms /></PageTransition>} />
         <Route path="/admin/products" element={<PageTransition><AdminProducts /></PageTransition>} />
         <Route path="/admin/orders" element={<PageTransition><AdminOrders /></PageTransition>} />
         <Route path="/admin/support" element={<PageTransition><AdminSupport /></PageTransition>} />
         <Route path="/admin/bulk-orders" element={<PageTransition><AdminBulkOrders /></PageTransition>} />
         <Route path="/admin/tools" element={<PageTransition><AdminTools /></PageTransition>} />
+        <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
       </Routes>
     </AnimatePresence>
   );

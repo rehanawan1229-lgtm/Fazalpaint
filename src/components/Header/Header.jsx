@@ -9,6 +9,8 @@ import AuthModal from '../AuthModal';
 const navItems = [
   { label: 'Home', to: '/' },
   { label: 'Products', to: '/products' },
+  { label: 'Brands', to: '/brands', extra: true },
+  { label: 'Track Order', to: '/track-order', extra: true },
   { label: 'About', to: '/about' },
   { label: 'Contact', to: '/contact' }
 ];
@@ -94,7 +96,7 @@ function Header() {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `nav-underline text-sm font-semibold ${isActive ? 'is-active text-accent' : 'text-text-primary hover:text-accent'}`
+                `nav-underline text-sm font-semibold ${item.extra ? 'hidden lg:block' : ''} ${isActive ? 'is-active text-accent' : 'text-text-primary hover:text-accent'}`
               }
             >
               {item.label}

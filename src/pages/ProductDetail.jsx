@@ -126,7 +126,8 @@ function ProductDetail() {
         // FIX: colorCode was never being passed to the cart item, so the
         // order confirmation email (which reads item.colorCode) always
         // showed the color name but never its shade-card number.
-        colorCode: currentVariant.color_code || currentVariant.colorCode
+        colorCode: currentVariant.color_code || currentVariant.colorCode,
+        swatchHex: currentVariant.swatch_hex || currentVariant.swatchHex
       });
       
       setMessage(`✓ Added to cart`);

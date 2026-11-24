@@ -8,6 +8,7 @@ import { useAdminAuth } from '../contexts/AdminAuthContext';
 import { useCart } from '../components/Cart/useCart';
 import { formatCurrency } from '../lib/formatCurrency';
 import { resolveImageUrl } from '../lib/adminApi';
+import { describeItemSpecs } from '../lib/itemSpecs';
 import {
   fetchMyOrders,
   fetchAddresses, createAddress, updateAddress, deleteAddress,
@@ -92,7 +93,7 @@ function OrdersTab() {
           <div className="mt-3 space-y-1">
             {(order.items || []).map((item, index) => (
               <p key={index} className="text-sm text-text-secondary">
-                {item.name} × {item.quantity}
+                {item.name}{describeItemSpecs(item) ? ` (${describeItemSpecs(item)})` : ''} × {item.quantity}
               </p>
             ))}
           </div>

@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { Printer, ArrowLeft } from 'lucide-react';
 import { fetchMyOrder } from '../lib/accountApi';
 import { formatCurrency } from '../lib/formatCurrency';
+import { describeItemSpecs } from '../lib/itemSpecs';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -93,7 +94,10 @@ function Invoice() {
           <tbody>
             {items.map((item, index) => (
               <tr key={index} className="border-b border-border/60">
-                <td className="py-2 text-text-primary">{item.name}</td>
+                <td className="py-2 text-text-primary">
+                  {item.name}
+                  {describeItemSpecs(item) && <span className="block text-xs text-text-secondary">{describeItemSpecs(item)}</span>}
+                </td>
                 <td className="py-2 text-center text-text-secondary">{item.quantity}</td>
                 <td className="py-2 text-right text-text-secondary">{formatCurrency(item.price)}</td>
                 <td className="py-2 text-right text-text-primary">{formatCurrency((item.price || 0) * (item.quantity || 1))}</td>

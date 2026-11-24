@@ -74,13 +74,34 @@ const smtpUser = (process.env.SMTP_USER || '').trim();
 const smtpPass = (process.env.SMTP_PASS || '').trim();
 const smtpPort = Number(process.env.SMTP_PORT || 587);
 const smtpSecure = process.env.SMTP_SECURE === 'true';
+// Render's FREE plan blocks the normal SMTP ports (25/465/587), so Gmail/Outlook
+// SMTP cannot connect from there. Setting BREVO_API_KEY switches email sending
+// to Brevo's HTTPS API (port 443), which is not blocked.
+const brevoApiKey = (process.env.BREVO_API_KEY || '').trim();
+// Gmail API (HTTPS, port 443 — works on Render free). Emails go out from the
+// Gmail account that authorised the refresh token. Needs all three values.
+const gmailClientId = (process.env.GMAIL_CLIENT_ID || '').trim();
+const gmailClientSecret = (process.env.GMAIL_CLIENT_SECRET || '').trim();
+const gmailRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || '').trim();
+const gmailApiEnabled = Boolean(gmailClientId && gmailClientSecret && gmailRefreshToken);
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '').trim();
-const ADMIN_NOTIFICATION_EMAIL = (process.env.ADMIN_NOTIFICATION_EMAIL || 'fazalpainthardware@gmail.com').trim();
+// ONE inbox that receives every shop-side email: new orders, logins/signups,
+// bulk-order (quotation) requests, support tickets. Change it from Render with
+// NOTIFICATION_EMAIL. The emails are SENT from the Gmail account connected to
+// the Gmail API (fazalpainthardware@gmail.com).
+const NOTIFICATION_INBOX = (process.env.NOTIFICATION_EMAIL || 'fornotificationofwebsite@gmail.com').trim();
+const ADMIN_NOTIFICATION_EMAIL = (process.env.ADMIN_NOTIFICATION_EMAIL || NOTIFICATION_INBOX).trim();
+
+// The address customers see when we email them about their order (status updates).
+// Replies from customers also come to this address. Can be changed from Render
+// with CUSTOMER_EMAIL_FROM.
+const CUSTOMER_EMAIL_FROM = (process.env.CUSTOMER_EMAIL_FROM || 'fazalpainthardware@gmail.com').trim();
 
 // Fixed destination for support-ticket / quotation-request notifications,
 // per the shop owner's explicit request — separate from the general admin
 // notification address above.
-const WEBSITE_NOTIFICATION_EMAIL = 'fornotificationofwebsite@gmail.com';
+// Can be changed from the Render environment (WEBSITE_NOTIFICATION_EMAIL) without editing code.
+const WEBSITE_NOTIFICATION_EMAIL = (process.env.WEBSITE_NOTIFICATION_EMAIL || NOTIFICATION_INBOX).trim();
 const jwtSecret = process.env.JWT_SECRET || 'dev-admin-secret';
 
 const db = new Database(dbPath);
@@ -287,7 +308,7 @@ async function notifyAdminOfSignup(newUser) {
     console.log('New signup (SMTP not configured, not emailed):', newUser);
     return;
   }
-  const to = process.env.SHOP_ORDER_EMAIL || process.env.VITE_SHOP_ORDER_EMAIL || smtpUser;
+  const to = process.env.SHOP_ORDER_EMAIL || NOTIFICATION_INBOX;
   const text = `New account sign up on the website\n\nName: ${newUser.name || 'N/A'}\nEmail: ${newUser.email || 'N/A'}\nPhone: ${newUser.phone || 'N/A'}\nSigned up via: ${newUser.signupMode || 'email'}\nDate: ${new Date().toISOString()}`;
   try {
     await transporter.sendMail({
@@ -302,14 +323,143 @@ async function notifyAdminOfSignup(newUser) {
 }
 
 function hasSmtpConfigured() {
+  if (gmailApiEnabled || brevoApiKey) return true;
   if (!smtpHost || !smtpUser || !smtpPass) return false;
   const badHosts = ['smtp.example.com', 'localhost', '127.0.0.1', '::1', ''];
   if (badHosts.includes(smtpHost.toLowerCase())) return false;
   return true;
 }
 
+// Turns '"Shop Name" <a@b.com>' (or a plain address) into Brevo's {name, email}.
+function parseMailAddress(value) {
+  const text = String(value || '').trim();
+  const match = text.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  return match ? { name: match[1].trim() || undefined, email: match[2].trim() } : { email: text };
+}
+
+function parseMailList(value) {
+  const list = Array.isArray(value) ? value : String(value || '').split(',');
+  return list.map((entry) => String(entry).trim()).filter(Boolean).map(parseMailAddress);
+}
+
+// Same sendMail()/verify() shape as nodemailer, so no other code has to change.
+function createBrevoTransporter() {
+  return {
+    async verify() {
+      const response = await fetch('https://api.brevo.com/v3/account', {
+        headers: { 'api-key': brevoApiKey, accept: 'application/json' },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (!response.ok) throw new Error(`Brevo API key check failed (HTTP ${response.status})`);
+      return true;
+    },
+    async sendMail(options) {
+      const body = {
+        sender: parseMailAddress(options.from || process.env.SMTP_FROM || smtpUser),
+        to: parseMailList(options.to),
+        subject: options.subject || '(no subject)',
+        textContent: options.text || ' '
+      };
+      if (options.replyTo) body.replyTo = parseMailAddress(options.replyTo);
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: { 'api-key': brevoApiKey, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(`Brevo email failed (HTTP ${response.status}): ${data.message || 'unknown error'}`);
+      }
+      return { messageId: data.messageId };
+    }
+  };
+}
+
+// ---- Gmail API sender (no extra packages; same sendMail()/verify() shape) ----
+let gmailTokenCache = { token: '', expiresAt: 0 };
+
+async function getGmailAccessToken(forceRefresh = false) {
+  if (!forceRefresh && gmailTokenCache.token && gmailTokenCache.expiresAt > Date.now() + 60 * 1000) {
+    return gmailTokenCache.token;
+  }
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: gmailClientId,
+      client_secret: gmailClientSecret,
+      refresh_token: gmailRefreshToken,
+      grant_type: 'refresh_token'
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    throw new Error(`Gmail sign-in failed (HTTP ${response.status}): ${data.error_description || data.error || 'unknown error'}`);
+  }
+  gmailTokenCache = { token: data.access_token, expiresAt: Date.now() + (Number(data.expires_in) || 3600) * 1000 };
+  return gmailTokenCache.token;
+}
+
+const cleanHeader = (value) => String(value || '').replace(/[\r\n]+/g, ' ').trim();
+const encodeHeaderWord = (text) => (/^[\x20-\x7e]*$/.test(text) ? text : `=?UTF-8?B?${Buffer.from(text, 'utf8').toString('base64')}?=`);
+
+function formatMailbox(value) {
+  const { name, email } = parseMailAddress(cleanHeader(value));
+  if (!name) return email;
+  const ascii = /^[\x20-\x7e]*$/.test(name);
+  return ascii ? `"${name.replace(/["\\]/g, '')}" <${email}>` : `${encodeHeaderWord(name)} <${email}>`;
+}
+
+function buildGmailRawMessage(options) {
+  // Gmail only sends as the connected account (or an alias), so use that address
+  // and keep just the display name the caller chose (e.g. "Order Received").
+  const senderEmail = (process.env.GMAIL_SENDER || CUSTOMER_EMAIL_FROM).trim();
+  const requestedFrom = parseMailAddress(cleanHeader(options.from || ''));
+  const fromValue = requestedFrom.name ? `${requestedFrom.name} <${senderEmail}>` : senderEmail;
+  const headers = [
+    `From: ${formatMailbox(fromValue)}`,
+    `To: ${parseMailList(options.to).map((entry) => formatMailbox(entry.name ? `${entry.name} <${entry.email}>` : entry.email)).join(', ')}`,
+    options.replyTo ? `Reply-To: ${formatMailbox(options.replyTo)}` : '',
+    `Subject: ${encodeHeaderWord(cleanHeader(options.subject || '(no subject)'))}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64'
+  ].filter(Boolean);
+  const body = Buffer.from(options.text || ' ', 'utf8').toString('base64').replace(/.{1,76}/g, '$&\r\n');
+  return Buffer.from(`${headers.join('\r\n')}\r\n\r\n${body}`, 'utf8').toString('base64url');
+}
+
+function createGmailApiTransporter() {
+  const send = async (raw, token) => fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ raw }),
+    signal: AbortSignal.timeout(15000)
+  });
+  return {
+    async verify() {
+      await getGmailAccessToken(true);
+      return true;
+    },
+    async sendMail(options) {
+      const raw = buildGmailRawMessage(options);
+      let response = await send(raw, await getGmailAccessToken());
+      if (response.status === 401) response = await send(raw, await getGmailAccessToken(true));
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(`Gmail API send failed (HTTP ${response.status}): ${data.error?.message || 'unknown error'}`);
+      }
+      return { messageId: data.id };
+    }
+  };
+}
+
 function createTransporter() {
   if (!hasSmtpConfigured()) return null;
+  if (gmailApiEnabled) return createGmailApiTransporter();
+  if (brevoApiKey) return createBrevoTransporter();
 
   const hostLower = smtpHost.toLowerCase();
   const transportOptions = {
@@ -342,6 +492,20 @@ function createTransporter() {
 }
 
 const transporter = createTransporter();
+
+// Logs once at startup whether email can really be sent, so the reason shows up
+// in the Render logs instead of customers just not receiving mail.
+if (transporter) {
+  if (brevoApiKey && !gmailApiEnabled && !process.env.SMTP_FROM) {
+    console.warn('EMAIL WARNING: BREVO_API_KEY is set but SMTP_FROM is not. Set SMTP_FROM to the sender address verified in Brevo.');
+  }
+  transporter.verify()
+    .then(() => console.log(`Shop emails (orders, logins, bulk orders, support) go to: ${process.env.SHOP_ORDER_EMAIL || NOTIFICATION_INBOX}`))
+    .then(() => console.log(`Email ready via ${gmailApiEnabled ? 'Gmail API' : brevoApiKey ? 'Brevo HTTPS API' : `SMTP ${smtpHost}:${smtpPort}`}`))
+    .catch((err) => console.error(`EMAIL NOT WORKING (${gmailApiEnabled ? 'Gmail API' : brevoApiKey ? 'Brevo' : 'SMTP'}):`, err.code || '', err.message));
+} else {
+  console.warn('EMAIL DISABLED: set GMAIL_CLIENT_ID + GMAIL_CLIENT_SECRET + GMAIL_REFRESH_TOKEN (or BREVO_API_KEY) — SMTP is blocked on Render free.');
+}
 
 // Wraps transporter.sendMail with a couple of retries — a single dropped
 // SMTP connection (common with Gmail under quick repeated sends) used to
@@ -823,6 +987,61 @@ app.use(express.static(publicDir, { maxAge: '1d' }));
 // Render free server does not fall asleep. Does no database work.
 app.get('/health', (req, res) => res.json({ ok: true, time: Date.now() }));
 
+// Public "Track my order" lookup. Needs BOTH the invoice number and the phone
+// number used for the order (last 10 digits must match), because invoice
+// numbers are sequential and would otherwise be guessable. Also rate-limited.
+const trackAttempts = new Map();
+app.post('/api/orders/track', (req, res) => {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const clientKey = forwarded || req.ip || 'unknown';
+  const now = Date.now();
+  if (trackAttempts.size > 5000) {
+    for (const [key, entry] of trackAttempts) if (entry.resetAt <= now) trackAttempts.delete(key);
+  }
+  const entry = trackAttempts.get(clientKey);
+  if (entry && entry.resetAt > now) {
+    if (entry.count >= 20) {
+      return res.status(429).json({ error: 'Too many attempts. Please try again in a few minutes.' });
+    }
+    entry.count += 1;
+  } else {
+    trackAttempts.set(clientKey, { count: 1, resetAt: now + 10 * 60 * 1000 });
+  }
+
+  const invoiceNumber = String(req.body?.invoiceNumber || '').trim().toUpperCase();
+  const phoneDigits = String(req.body?.phone || '').replace(/\D/g, '');
+  if (!invoiceNumber || phoneDigits.length < 10) {
+    return res.status(400).json({ error: 'Please enter your invoice number and the phone number used for the order.' });
+  }
+
+  const order = db.prepare(`
+    SELECT invoice_number, customer_phone, status, items_json, total, payment_method, created_at, updated_at
+    FROM orders WHERE invoice_number = ?
+  `).get(invoiceNumber);
+  const lastTen = (value) => String(value || '').replace(/\D/g, '').slice(-10);
+  if (!order || lastTen(order.customer_phone) !== phoneDigits.slice(-10)) {
+    return res.status(404).json({ error: 'No order found with these details. Please check them and try again.' });
+  }
+
+  let items = [];
+  try { items = JSON.parse(order.items_json) || []; } catch { items = []; }
+  return res.json({
+    invoiceNumber: order.invoice_number,
+    status: order.status,
+    createdAt: order.created_at,
+    updatedAt: order.updated_at,
+    total: order.total,
+    paymentMethod: order.payment_method,
+    items: items.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      packaging: item.packaging || null,
+      colorName: item.colorName || null,
+      colorCode: item.colorCode || null
+    }))
+  });
+});
+
 app.post('/send-order', async (req, res) => {
   const order = req.body;
   try {
@@ -838,7 +1057,7 @@ app.post('/send-order', async (req, res) => {
       // the From header ("Order Received") is what makes Gmail show that
       // instead of "me" when the shop emails itself.
       from: `"Order Received" <${process.env.SMTP_FROM || smtpUser || 'order@fazalpainthardware.com'}>`,
-      to: process.env.SHOP_ORDER_EMAIL || process.env.VITE_SHOP_ORDER_EMAIL || 'fazalpainthardware1@outlook.com',
+      to: process.env.SHOP_ORDER_EMAIL || NOTIFICATION_INBOX,
       subject: `${order.customer.fullName} order received`,
       text: formatOrderEmail(order)
     };
@@ -858,7 +1077,7 @@ app.post('/send-order', async (req, res) => {
 
 app.post('/test-email', async (req, res) => {
   const { to: requestedTo, subject = 'Test email from order server', text = 'This is a test email to verify SMTP configuration.' } = req.body || {};
-  const recipient = requestedTo || process.env.SHOP_ORDER_EMAIL || process.env.VITE_SHOP_ORDER_EMAIL || smtpUser;
+  const recipient = requestedTo || process.env.SHOP_ORDER_EMAIL || NOTIFICATION_INBOX;
 
   if (hasSmtpConfigured() && transporter) {
     try {
@@ -2796,18 +3015,71 @@ function buildStatusUpdateMessage({ invoiceNumber, status }) {
   return `Assalam-o-Alaikum,\nFazal Paint & Hardware Store se bat kar rahe hain.\n\nInvoice #: ${invoiceNumber}\nAapke order ka status update ho gaya hai: ${status}\n\nShukriya!\nFazal Paint & Hardware Store`;
 }
 
+const STATUS_EMAIL_LINES = {
+  pending: 'Aapka order hamein mil gaya hai. Hum jald aap se raabta karenge.',
+  confirmed: 'Aapka order confirm ho gaya hai aur tayyar kiya ja raha hai.',
+  shipped: 'Aapka order bhej diya gaya hai (ya pickup ke liye tayyar hai).',
+  delivered: 'Aapka order deliver ho gaya hai. Humein chunne ka shukriya!',
+  cancelled: 'Aapka order cancel kar diya gaya hai. Agar aap ne cancel nahi karwaya to meherbani karke hum se raabta karein.'
+};
+
+function buildStatusEmailText(order, status) {
+  let items = [];
+  try { items = JSON.parse(order.items_json) || []; } catch { items = []; }
+  const itemLines = items.map((item, index) => {
+    const specs = [
+      item.brand,
+      item.packaging,
+      item.colorName ? `Colour: ${item.colorName}` : '',
+      item.colorCode ? `Colour code: ${item.colorCode}` : ''
+    ].filter(Boolean).join(', ');
+    return `${index + 1}. ${item.name}${specs ? ` (${specs})` : ''} x ${item.quantity}`;
+  });
+  const line = STATUS_EMAIL_LINES[String(status).toLowerCase()] || `Aapke order ka status ab "${status}" hai.`;
+  return [
+    `Assalam o Alaikum ${order.customer_name || ''},`.trim(),
+    '',
+    'Aapke order ka status update ho gaya hai.',
+    '',
+    `Invoice #: ${order.invoice_number}`,
+    `Naya status (New status): ${status}`,
+    line,
+    '',
+    itemLines.length ? 'Order ki tafseel:' : '',
+    ...itemLines,
+    itemLines.length ? '' : '',
+    `Total: Rs. ${formatAmountForMessage(order.total)}`,
+    order.payment_method ? `Payment: ${order.payment_method}` : '',
+    '',
+    'Order ka status website ke "Track Order" page par bhi dekh sakte hain.',
+    'Koi sawal ho to WhatsApp karein: +92 342 9085556',
+    '',
+    'Shukriya!',
+    'Fazal Paint & Hardware Store, Bannu Road, Dera Ismail Khan'
+  ].filter((value, index, all) => !(value === '' && all[index - 1] === '')).join('\n');
+}
+
 async function notifyCustomerOfStatusChange(order, status) {
-  // Email (if the order has one and SMTP is configured)
+  // Email (if the order has one and email sending is configured)
   if (order.customer_email && hasSmtpConfigured() && transporter) {
+    const message = {
+      to: order.customer_email,
+      subject: `Order ${order.invoice_number} status update: ${status}`,
+      text: buildStatusEmailText(order, status),
+      replyTo: CUSTOMER_EMAIL_FROM
+    };
     try {
-      await transporter.sendMail({
-        from: `"Fazal Paint Hardware" <${process.env.SMTP_FROM || smtpUser || 'order@fazalpainthardware.com'}>`,
-        to: order.customer_email,
-        subject: `Order ${order.invoice_number} status update: ${status}`,
-        text: `Aapke order (Invoice #: ${order.invoice_number}) ka status update ho gaya hai: ${status}\n\nShukriya!\nFazal Paint & Hardware Store`
-      });
+      await transporter.sendMail({ ...message, from: `"Fazal Paint Hardware" <${CUSTOMER_EMAIL_FROM}>` });
     } catch (err) {
-      console.error('Failed to email customer about status change:', err);
+      // If the email service does not accept this sender address, still deliver the
+      // update from the default sender, with replies pointed at CUSTOMER_EMAIL_FROM.
+      console.error(`Status email from ${CUSTOMER_EMAIL_FROM} failed, retrying with the default sender:`, err.message);
+      try {
+        const fallbackFrom = process.env.SMTP_FROM || smtpUser || 'order@fazalpainthardware.com';
+        await transporter.sendMail({ ...message, from: `"Fazal Paint Hardware" <${fallbackFrom}>` });
+      } catch (retryErr) {
+        console.error('Failed to email customer about status change:', retryErr);
+      }
     }
   }
   // WhatsApp (if configured)
@@ -2829,9 +3101,14 @@ app.put('/api/admin/orders/:id/status', authenticate, requireAdmin, async (req, 
   if (!order) {
     return res.status(404).json({ error: 'Order not found' });
   }
+  const previousStatus = order.status;
   db.prepare('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?').run(status, new Date().toISOString(), id);
   const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-  notifyCustomerOfStatusChange(updated, status).catch(() => {});
+  // Email the customer (at the address they entered when ordering) whenever the
+  // status really changes. Runs in the background, so the admin is not kept waiting.
+  if (String(previousStatus || '').toLowerCase() !== String(status).toLowerCase()) {
+    notifyCustomerOfStatusChange(updated, status).catch((err) => console.error('Status notification failed:', err));
+  }
   return res.json({ ...updated, items: JSON.parse(updated.items_json) });
 });
 

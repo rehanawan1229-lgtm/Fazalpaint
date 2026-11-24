@@ -52,9 +52,13 @@ const BRAND_PRODUCT_LINES = {
 const ALL_BRANDS_LINE_GROUPS = ['Emulsion', 'Enamel', 'Weather Coat', 'General'];
 
 function Products() {
+  // The Brands page links here with ?brand=... or ?category=... already chosen.
+  const initialParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const initialCategory = initialParams.get('category');
+  const initialBrand = initialParams.get('brand');
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All');
-  const [brandFilter, setBrandFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState(['Paint', 'Hardware', 'Paint Additives'].includes(initialCategory) ? initialCategory : 'All');
+  const [brandFilter, setBrandFilter] = useState(initialBrand || 'All');
   const [lineFilter, setLineFilter] = useState('All');
   const [catalog, setCatalog] = useState(fallbackProducts);
   const [loading, setLoading] = useState(true);

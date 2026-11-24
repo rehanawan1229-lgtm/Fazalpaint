@@ -4,6 +4,7 @@ import { Navigate, NavLink } from 'react-router-dom';
 import { Eye, EyeOff, Search, X, Phone, Mail, MapPin, CreditCard, Package, Trash2 } from 'lucide-react';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import AdminSectionNav from '../components/AdminSectionNav';
+import { getItemSpecs } from '../lib/itemSpecs';
 import {
   fetchOrders,
   fetchOrderDetail,
@@ -65,7 +66,9 @@ function getEmail(order) {
   return order?.email || order?.customer_email || order?.customerEmail || '';
 }
 function getAddress(order) {
-  return order?.address || order?.customer_address || order?.shipping_address || order?.customerAddress || '';
+  const street = order?.address || order?.customer_address || order?.shipping_address || order?.customerAddress || '';
+  const place = [order?.shipping_city, order?.shipping_state, order?.shipping_postal].filter(Boolean).join(', ');
+  return [street, place].filter(Boolean).join(', ');
 }
 function getPaymentMethod(order) {
   return order?.payment_method || order?.paymentMethod || 'Not specified';
@@ -347,7 +350,7 @@ function AdminOrders() {
   }
 
   const detailPhone = orderDetail ? getPhone(orderDetail) : selectedOrder ? getPhone(selectedOrder) : '';
-  const detailEmail = orderDetail ? getEmail(orderDetail) : selectedOrder ? getEmail(orderDetail) : '';
+  const detailEmail = orderDetail ? getEmail(orderDetail) : selectedOrder ? getEmail(selectedOrder) : '';
   const whatsappLink = toWhatsAppLink(detailPhone);
   const mailLink = toMailLink(detailEmail);
 
@@ -551,7 +554,9 @@ function AdminOrders() {
           <div className="max-h-[90dvh] w-full max-w-2xl animate-modal-pop overflow-y-auto rounded-[32px] bg-white p-6 shadow-soft sm:p-8">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--color-accent)]">Order #{selectedOrder?.id}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--color-accent)]">
+                  Order #{selectedOrder?.id}{(orderDetail || selectedOrder)?.invoice_number ? ` · ${(orderDetail || selectedOrder).invoice_number}` : ''}
+                </p>
                 <h2 className="mt-1 text-xl font-semibold text-[#4A3527]">{getCustomerName(orderDetail || selectedOrder || {})}</h2>
               </div>
               <button type="button" onClick={closeOrderModal} aria-label="Close" className="rounded-full px-2 py-1 text-lg text-[#8A7A6D] hover:bg-[#FFF9F4]">✕</button>
@@ -606,29 +611,51 @@ function AdminOrders() {
                     {getItems(orderDetail || selectedOrder || {}).length === 0 ? (
                       <p className="text-sm text-[#8A7A6D]">No item details available.</p>
                     ) : (
-                      getItems(orderDetail || selectedOrder || {}).map((item, index) => (
-                        <div key={item.id ?? index} className="flex items-center gap-3 rounded-2xl border border-[#FFF1E6] bg-white px-4 py-3">
-                          {item.swatch_hex ? (
-                            <span
-                              className="h-8 w-8 flex-shrink-0 rounded-full border border-[#F3E4D4]"
-                              style={{ backgroundColor: item.swatch_hex }}
-                              title={item.color_name || ''}
-                            />
-                          ) : item.image_url ? (
-                            <img src={resolveImageUrl(item.image_url)} alt={item.name} className="h-10 w-10 flex-shrink-0 rounded-xl object-cover" />
-                          ) : null}
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-[#4A3527]">{item.name || item.product_name || 'Item'}</p>
-                            <p className="mt-0.5 text-xs text-[#8A7A6D]">
-                              {[item.packaging, item.color_name, item.color_code].filter(Boolean).join(' · ') || null}
-                            </p>
+                      getItems(orderDetail || selectedOrder || {}).map((item, index) => {
+                        const specs = getItemSpecs(item);
+                        const quantity = Number(item.quantity ?? item.qty ?? 1);
+                        const unitPrice = Number(item.price) || 0;
+                        const details = [
+                          ['Brand', specs.brand],
+                          ['Size / packing', specs.packaging],
+                          ['Colour name', specs.colorName],
+                          ['Colour code', specs.colorCode],
+                          ['Product ID', item.id]
+                        ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+                        return (
+                          <div key={item.id ?? index} className="rounded-2xl border border-[#FFF1E6] bg-white px-4 py-3">
+                            <div className="flex items-start gap-3">
+                              {specs.swatch ? (
+                                <span
+                                  className="h-10 w-10 flex-shrink-0 rounded-full border border-[#F3E4D4]"
+                                  style={{ backgroundColor: specs.swatch }}
+                                  title={specs.colorName || ''}
+                                />
+                              ) : item.image_url ? (
+                                <img src={resolveImageUrl(item.image_url)} alt={item.name} className="h-10 w-10 flex-shrink-0 rounded-xl object-cover" />
+                              ) : null}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-[#4A3527]">{item.name || item.product_name || 'Item'}</p>
+                                <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                  {details.map(([label, value]) => (
+                                    <div key={label}>
+                                      <dt className="text-[#8A7A6D]">{label}</dt>
+                                      <dd className="font-semibold text-[#4A3527]">{String(value)}</dd>
+                                    </div>
+                                  ))}
+                                  {!specs.colorName && !specs.colorCode && (
+                                    <div className="col-span-2 text-[#8A7A6D]">Colour: not recorded for this item</div>
+                                  )}
+                                </dl>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between border-t border-[#FFF1E6] pt-2 text-sm">
+                              <span className="text-[#8A7A6D]">Rs. {formatMoney(unitPrice)} × {quantity}</span>
+                              <span className="font-semibold text-[#4A3527]">Rs. {formatMoney(unitPrice * quantity)}</span>
+                            </div>
                           </div>
-                          <div className="flex-shrink-0 text-right text-sm">
-                            <p className="text-[#8A7A6D]">Qty {item.quantity ?? item.qty ?? 1}</p>
-                            <p className="font-semibold text-[#4A3527]">Rs. {formatMoney(item.price)}</p>
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>

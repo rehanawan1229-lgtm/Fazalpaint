@@ -31,7 +31,11 @@ function ProductCard({ product }) {
       name: product.name,
       brand: product.brand,
       packaging: product.packaging || product.category || 'Standard',
-      colorName: product.colorName || product.category || 'Standard',
+      // Real colour name/code/swatch from the product, so the order (and the
+      // admin screen) shows the shade instead of just the category.
+      colorName: product.color_name || undefined,
+      colorCode: product.color_code || undefined,
+      swatchHex: product.swatch_hex || undefined,
       price: product.price,
       quantity: 1
     });
