@@ -6,10 +6,39 @@ import { api } from '../../lib/adminApi';
 
 const WELCOME_MESSAGE = {
   role: 'assistant',
-  content: "Assalam-o-Alaikum! 👋 Main \"Ask Fazal\" hoon — aap mujhse kisi bhi product ka stock, price, ya shop ki details pooch sakte hain. Masalan: \"Master Enamel gallon available hai?\""
+  content: "Assalam-o-Alaikum! 👋 Main \"Ask Fazal\" hoon, Fazal Paint Hardware ka assistant. Aap mujhse pooch sakte hain:\n• Product ka stock aur price (jaise \"Master enamel red\")\n• Kitna paint lagega (jaise \"12x14 room\")\n• Delivery, payment, return aur order tracking\n• Shop ka waqt, branches aur phone numbers\n• Paint ka mashwara: primer, putty, seelan, lohe/lakri par paint"
 };
 
-const SUGGESTIONS = ['Kya Berger Paint stock mein hai?', 'Shop kab tak khula hai?', 'Trolley available hai?'];
+const SUGGESTIONS = [
+  'Master enamel ka price?',
+  'Kitna paint lagega?',
+  'Delivery hoti hai?',
+  'Payment kaise karein?',
+  'Order track kaise karun?',
+  'Shop kab tak khula hai?'
+];
+
+// Turns links and phone numbers in a reply into tappable links.
+const LINK_PATTERN = /(https?:\/\/[^\s)]+|\+92 ?\d{3} ?\d{7})/g;
+function renderMessageText(text) {
+  return String(text || '').split(LINK_PATTERN).map((part, index) => {
+    if (/^https?:\/\//.test(part)) {
+      return (
+        <a key={index} href={part} target="_blank" rel="noreferrer" className="break-all underline">
+          {part}
+        </a>
+      );
+    }
+    if (/^\+92/.test(part)) {
+      return (
+        <a key={index} href={`tel:${part.replace(/\s/g, '')}`} className="underline">
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
 
 function TypingDots() {
   return (
@@ -65,7 +94,14 @@ function ChatWidget() {
         .slice(-8)
         .map((m) => ({ role: m.role, content: m.content }));
       const response = await api('/api/assistant', { method: 'POST', body: { message: trimmed, history } });
-      setMessages((prev) => [...prev, { role: 'assistant', content: response?.reply || "Maazrat, mujhe abhi jawab nahi mil saka. Dobara koshish karein ya +92 342 9085556 par call karein." }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: response?.reply || "Maazrat, mujhe abhi jawab nahi mil saka. Dobara koshish karein ya +92 342 9085556 par call karein.",
+          suggestions: Array.isArray(response?.suggestions) ? response.suggestions.slice(0, 4) : []
+        }
+      ]);
     } catch (err) {
       console.error('Assistant request failed:', err);
       setMessages((prev) => [
@@ -145,7 +181,7 @@ function ChatWidget() {
                   <p className="text-sm font-semibold">Ask Fazal</p>
                   <p className="flex items-center gap-1.5 text-xs text-[#F3E4D4]">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#4E9C79]" />
-                    AI shop assistant
+                    Shop assistant: stock, price aur mashwara
                   </p>
                 </div>
                 <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 transition-colors hover:bg-white/10" aria-label="Close chat">
@@ -154,7 +190,7 @@ function ChatWidget() {
               </div>
 
               {/* Messages */}
-              <div ref={scrollRef} className="thin-scroll flex-1 space-y-3 overflow-y-auto px-4 py-4">
+              <div ref={scrollRef} aria-live="polite" className="thin-scroll flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4">
                 {messages.map((message, index) => (
                   <motion.div
                     key={index}
@@ -170,7 +206,7 @@ function ChatWidget() {
                           : 'rounded-bl-sm border border-border bg-white text-text-primary'
                       }`}
                     >
-                      {message.content}
+                      {message.role === 'assistant' ? renderMessageText(message.content) : message.content}
                     </div>
                   </motion.div>
                 ))}
@@ -181,9 +217,9 @@ function ChatWidget() {
                     </div>
                   </motion.div>
                 )}
-                {messages.length === 1 && !sending && (
+                {!sending && (messages.length === 1 ? SUGGESTIONS : messages[messages.length - 1]?.suggestions || []).length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2">
-                    {SUGGESTIONS.map((suggestion) => (
+                    {(messages.length === 1 ? SUGGESTIONS : messages[messages.length - 1]?.suggestions || []).map((suggestion) => (
                       <button
                         key={suggestion}
                         type="button"
@@ -210,6 +246,9 @@ function ChatWidget() {
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
                   placeholder="Apna sawaal likhein..."
+                  maxLength={500}
+                  autoComplete="off"
+                  enterKeyHint="send"
                   disabled={sending}
                   className="min-w-0 flex-1 rounded-2xl border border-border bg-bg-light px-4 py-3 text-sm text-text-primary transition-colors focus:border-accent"
                 />

@@ -11,6 +11,7 @@ import multer from 'multer';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import compression from 'compression';
+import { answerWithRules, buildSystemPrompt, DEFAULT_SUGGESTIONS } from './assistantKnowledge.js';
 
 // FIX: previously this was just dotenv.config(), which only looks for a
 // ".env" file in the CURRENT WORKING DIRECTORY (wherever "node ..." was
@@ -1957,195 +1958,115 @@ app.post('/api/admin/upload', authenticate, requireAdmin, (req, res) => {
 
 // ==================== AI SHOP ASSISTANT API ====================
 //
-// Powers the "Ask Fazal" chat widget. Always grounds its answer in the
-// REAL, current products table (never invents stock status), so "is X in
-// stock?" is always accurate as of the moment it's asked.
+// Powers the "Ask Fazal" chat widget. All the shop knowledge (hours, branches,
+// delivery, payment, returns, paint advice, FAQs) lives in
+// server/assistantKnowledge.js - edit that file to teach the assistant more.
+// Stock and prices always come from the live products table.
 //
 // Two modes, chosen automatically:
-//  1. If ANTHROPIC_API_KEY is set in .env, every question is answered by
-//     Claude, given a compact summary of the live catalog as context — this
-//     is the fully "intelligent" free-text mode.
-//  2. If no key is set, a dependency-free rule-based responder still
-//     answers greetings, shop-info questions (timings/location/phone/
-//     delivery), and stock/availability questions with real matches +
-//     in-stock alternatives. The widget works out of the box either way;
-//     adding a key just makes it smarter and more conversational.
+//  1. ANTHROPIC_API_KEY set  -> Claude answers in free text, using the same
+//     knowledge + the live catalog (smartest). Model: ASSISTANT_MODEL env var.
+//  2. No key                 -> the built-in rule engine answers (free, instant,
+//     understands Roman Urdu / Urdu / English, typos, paint-quantity maths).
 
 function loadAssistantCatalog() {
   return db.prepare(`
-    SELECT name, brand, category, sub_category, packaging, color_name, price, in_stock
+    SELECT name, brand, category, sub_category, packaging, color_name, color_code, price, in_stock
     FROM products
     ORDER BY created_at DESC
     LIMIT 600
   `).all();
 }
 
-function formatPriceForAssistant(price) {
-  if (price === null || price === undefined) return 'Call for price';
-  return `Rs ${Math.round(price).toLocaleString('en-PK')}`;
-}
-
-function catalogToPromptText(products) {
-  return products
-    .map((product) => {
-      const line = [product.brand, product.sub_category || product.category, product.color_name, product.packaging]
-        .filter(Boolean)
-        .join(' / ');
-      const stock = product.in_stock ? 'IN STOCK' : 'OUT OF STOCK';
-      return `- ${product.name} (${line}) — ${formatPriceForAssistant(product.price)} — ${stock}`;
-    })
-    .join('\n');
-}
-
-const SHOP_FACTS = `Shop: Fazal Paint Hardware and Trolley House, Bannu Road, Opposite Kotli Imam Hussain, Dera Ismail Khan, Pakistan (est. 1982).
-Hours: Monday to Sunday, 6am to 6pm.
-Phone / WhatsApp: +92 342 9085556.
-Brands carried: Master Paint, Berger Paint, Choice Paint, plus general hardware, tools, fittings, and trolleys across four floors.`;
-
-const GREETING_PATTERN = /^(hi|hello|hey|salam|assalam|as-salam|aoa|slam|hy|hii+)\b/i;
-const FAQ_PATTERNS = [
-  { pattern: /(timing|time|hour|khul|band\b)/i, reply: `Hum Monday se Sunday, subah 6 baje se sham 6 baje tak khule rehte hain. 🕕` },
-  { pattern: /(location|address|kahan|kidhar|pata)/i, reply: `Hamari location Bannu Road, Opposite Kotli Imam Hussain, Dera Ismail Khan hai. 📍` },
-  { pattern: /(phone|number|whatsapp|contact|rabta|call)/i, reply: `Aap hume +92 342 9085556 par call ya WhatsApp kar sakte hain. 📞` },
-  { pattern: /(deliver|delivery|bhejna|ghar tak)/i, reply: `Ji, hum D.I. Khan ke andar delivery aur pickup dono offer karte hain — order confirm hone ke baad shop se contact hoga. 🚚` },
-  { pattern: /(brand|company|kaunsi paint|which paint)/i, reply: `Hum Master Paint, Berger Paint, aur Choice Paint rakhte hain, sath general hardware, tools aur trolleys bhi. 🎨` }
-];
-
-function normalizeText(value) {
-  return (value || '').toString().toLowerCase().trim();
-}
-
-function scoreProductAgainstQuery(product, queryWords) {
-  const haystack = normalizeText(
-    [product.name, product.brand, product.category, product.sub_category, product.color_name, product.packaging].join(' ')
-  );
-  let score = 0;
-  for (const word of queryWords) {
-    if (word.length < 3) continue;
-    if (haystack.includes(word)) score += 1;
+// Keep only well-formed, alternating user/assistant turns (the last 10 at most).
+function sanitizeAssistantHistory(history) {
+  const cleaned = [];
+  for (const item of Array.isArray(history) ? history.slice(-10) : []) {
+    if (!item || (item.role !== 'user' && item.role !== 'assistant')) continue;
+    const content = String(item.content || '').trim().slice(0, 800);
+    if (!content) continue;
+    if (cleaned.length && cleaned[cleaned.length - 1].role === item.role) continue;
+    cleaned.push({ role: item.role, content });
   }
-  return score;
-}
-
-// Dependency-free fallback used when no ANTHROPIC_API_KEY is configured —
-// still genuinely useful for the most common questions (stock checks,
-// shop info) rather than a generic "I don't understand".
-function answerWithRules(message, products) {
-  const clean = normalizeText(message);
-
-  if (GREETING_PATTERN.test(clean)) {
-    return `Assalam-o-Alaikum! Main Fazal Paint Hardware ka assistant hoon. Aap mujhse kisi bhi product ka stock, price, ya shop ki details pooch sakte hain — masalan "Master Enamel gallon available hai?" 😊`;
-  }
-
-  for (const faq of FAQ_PATTERNS) {
-    if (faq.pattern.test(clean)) return faq.reply;
-  }
-
-  const queryWords = clean.split(/\s+/).filter(Boolean);
-  const scored = products
-    .map((product) => ({ product, score: scoreProductAgainstQuery(product, queryWords) }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
-
-  if (scored.length === 0) {
-    return `Mujhe is query se koi matching product nahi mila. Aap product ka naam, brand (Master/Berger/Choice), ya category bata kar dobara try karein — ya phir "Products" page par pura catalog dekh sakte hain. 🙂`;
-  }
-
-  const inStockMatches = scored.filter((entry) => entry.product.in_stock);
-  const outOfStockMatches = scored.filter((entry) => !entry.product.in_stock);
-
-  let reply = '';
-  if (inStockMatches.length > 0) {
-    reply += `Ye mila stock mein ✅:\n`;
-    reply += inStockMatches
-      .map((entry) => `• ${entry.product.name} (${entry.product.brand || 'General'}) — ${formatPriceForAssistant(entry.product.price)}`)
-      .join('\n');
-  }
-  if (outOfStockMatches.length > 0) {
-    if (reply) reply += '\n\n';
-    reply += `Ye filhal out of stock hai ❌:\n`;
-    reply += outOfStockMatches.map((entry) => `• ${entry.product.name} (${entry.product.brand || 'General'})`).join('\n');
-
-    // Suggest an in-stock alternative from the same sub-category/category.
-    const outCategories = new Set(outOfStockMatches.map((entry) => entry.product.sub_category || entry.product.category));
-    const alternatives = products.filter(
-      (product) => product.in_stock && outCategories.has(product.sub_category || product.category)
-    ).slice(0, 3);
-    if (alternatives.length > 0) {
-      reply += `\n\nIski jagah ye options abhi stock mein maujood hain:\n`;
-      reply += alternatives.map((product) => `• ${product.name} — ${formatPriceForAssistant(product.price)}`).join('\n');
-    }
-  }
-  return reply;
+  while (cleaned.length && cleaned[0].role !== 'user') cleaned.shift();
+  if (cleaned.length && cleaned[cleaned.length - 1].role === 'user') cleaned.pop();
+  return cleaned;
 }
 
 async function answerWithClaude(message, history, products) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const systemPrompt = `You are the friendly, professional shop assistant for Fazal Paint Hardware and Trolley House, a paint and hardware store in Dera Ismail Khan, Pakistan.
-
-${SHOP_FACTS}
-
-Current live catalog (name / brand / line / color / packaging — price — stock status):
-${catalogToPromptText(products)}
-
-Rules:
-- Only state a product as "in stock" or "out of stock" if it appears in the catalog above — never guess or invent stock status.
-- If asked about something not in the catalog, say so honestly and suggest the closest real alternative from the list, or suggest calling +92 342 9085556.
-- Reply in the same language/register the customer used (Roman Urdu, Urdu, or English) — most customers write in Roman Urdu.
-- Keep answers short, warm, and professional — this is a real customer chatting from their phone. Use at most 1-2 short paragraphs or a short bullet list.
-- You may suggest in-stock alternatives when something is out of stock.`;
-
+  const messages = [...sanitizeAssistantHistory(history), { role: 'user', content: message }];
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
+      'content-type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-3-5-haiku-latest',
-      max_tokens: 500,
-      system: systemPrompt,
-      messages: [...(history || []).slice(-6), { role: 'user', content: message }]
-    })
+      model: process.env.ASSISTANT_MODEL || 'claude-haiku-5-5',
+      max_tokens: 700,
+      system: buildSystemPrompt(products),
+      messages
+    }),
+    signal: AbortSignal.timeout(25000)
   });
-
   if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`Anthropic API error ${response.status}: ${errText}`);
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Anthropic API ${response.status}: ${detail.slice(0, 200)}`);
   }
-
   const data = await response.json();
   const textBlock = (data.content || []).find((block) => block.type === 'text');
-  return textBlock?.text || answerWithRules(message, products);
+  if (!textBlock?.text) throw new Error('Empty AI reply');
+  return textBlock.text.trim();
+}
+
+// Simple per-visitor limit so nobody can run up the AI bill or hammer the server.
+const assistantAttempts = new Map();
+function assistantRateLimited(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const key = forwarded || req.ip || 'unknown';
+  const now = Date.now();
+  if (assistantAttempts.size > 5000) {
+    for (const [k, entry] of assistantAttempts) if (entry.resetAt <= now) assistantAttempts.delete(k);
+  }
+  const entry = assistantAttempts.get(key);
+  if (entry && entry.resetAt > now) {
+    entry.count += 1;
+    return entry.count > 40;
+  }
+  assistantAttempts.set(key, { count: 1, resetAt: now + 10 * 60 * 1000 });
+  return false;
 }
 
 app.post('/api/assistant', async (req, res) => {
   const { message, history } = req.body || {};
+  const text = String(message || '').trim().slice(0, 500);
 
-  if (!message || !String(message).trim()) {
+  if (!text) {
     return res.status(400).json({ error: 'message is required' });
+  }
+  if (assistantRateLimited(req)) {
+    return res.json({
+      reply: 'Aap ne bohat se sawal ek saath puchh liye hain, thori der baad dobara try karein ya seedha WhatsApp karein: +92 342 9085556. 🙏',
+      mode: 'limited',
+      suggestions: []
+    });
   }
 
   try {
     const products = loadAssistantCatalog();
-    let reply;
-    let mode = 'rules';
+    const ruleAnswer = answerWithRules(text, products, sanitizeAssistantHistory(history));
 
     if (process.env.ANTHROPIC_API_KEY) {
       try {
-        reply = await answerWithClaude(String(message).trim(), history, products);
-        mode = 'ai';
+        const reply = await answerWithClaude(text, history, products);
+        return res.json({ reply, mode: 'ai', suggestions: ruleAnswer.suggestions || DEFAULT_SUGGESTIONS });
       } catch (err) {
         console.error('Assistant AI mode failed, falling back to rules:', err.message);
-        reply = answerWithRules(String(message).trim(), products);
       }
-    } else {
-      reply = answerWithRules(String(message).trim(), products);
     }
 
-    return res.json({ reply, mode });
+    return res.json({ reply: ruleAnswer.reply, mode: 'rules', suggestions: ruleAnswer.suggestions || DEFAULT_SUGGESTIONS });
   } catch (err) {
     console.error('Assistant route error:', err);
     return res.status(500).json({ error: 'Assistant is temporarily unavailable' });
