@@ -57,7 +57,8 @@ function TypingDots() {
 
 function ChatWidget() {
   const location = useLocation();
-  const isCheckoutPage = location.pathname === '/checkout';
+  // Pages with a fixed bottom bar on mobile (checkout, product detail): lift the chat button above it.
+  const isCheckoutPage = location.pathname === '/checkout' || /^\/products\/[^/]+\/?$/.test(location.pathname);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
@@ -115,9 +116,8 @@ function ChatWidget() {
 
   return (
     <>
-      {/* Floating action button — fixed above the mobile safe area so it
-          never collides with device home-bar gestures, and sits clear of
-          the WhatsApp/cart buttons which live in the header, not here. */}
+      {/* Floating action button. z-[45] keeps it UNDER the cart drawer / login popup, and on mobile it is hidden
+          while the chat sheet is open (the sheet has its own close button) so it can never cover the Send button. */}
       <motion.button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -125,7 +125,9 @@ function ChatWidget() {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 0.6, type: 'spring', stiffness: 260, damping: 20 }}
         whileTap={{ scale: 0.92 }}
-        className={`fixed right-4 z-[70] flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-lift transition-colors hover:bg-accent-hover sm:h-16 sm:w-16 ${
+        className={`fixed right-4 z-[45] items-center justify-center rounded-full bg-accent text-white shadow-lift transition-colors hover:bg-accent-hover sm:h-16 sm:w-16 h-14 w-14 ${
+          open ? 'hidden sm:flex' : 'flex'
+        } ${
           isCheckoutPage
             ? 'bottom-[calc(5.75rem+env(safe-area-inset-bottom))] lg:bottom-[calc(1.25rem+env(safe-area-inset-bottom))]'
             : 'bottom-[calc(1.25rem+env(safe-area-inset-bottom))]'
@@ -239,7 +241,7 @@ function ChatWidget() {
                   event.preventDefault();
                   sendMessage();
                 }}
-                className="flex items-center gap-2 border-t border-border bg-white px-3 py-3"
+                className="flex items-center gap-2 border-t border-border bg-white px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
               >
                 <input
                   ref={inputRef}

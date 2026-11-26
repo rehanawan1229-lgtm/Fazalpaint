@@ -2056,6 +2056,7 @@ app.post('/api/assistant', async (req, res) => {
   try {
     const products = loadAssistantCatalog();
     const ruleAnswer = answerWithRules(text, products, sanitizeAssistantHistory(history));
+    if (ruleAnswer.intent === 'fallback') console.log('[assistant-unanswered]', JSON.stringify(String(text).slice(0, 200)));
 
     if (process.env.ANTHROPIC_API_KEY) {
       try {
