@@ -5,7 +5,7 @@ import { useAdminAuth } from '../contexts/AdminAuthContext';
 function AdminEditToggle() {
   const { isAdmin, editMode, toggleEditMode } = useAdminAuth();
   const { pathname } = useLocation();
-  const hasBottomBar = pathname === '/checkout' || /^\/products\/[^/]+\/?$/.test(pathname);
+  const hasBottomBar = pathname === '/checkout';
 
   if (!isAdmin) return null;
 

@@ -57,8 +57,8 @@ function TypingDots() {
 
 function ChatWidget() {
   const location = useLocation();
-  // Pages with a fixed bottom bar on mobile (checkout, product detail): lift the chat button above it.
-  const isCheckoutPage = location.pathname === '/checkout' || /^\/products\/[^/]+\/?$/.test(location.pathname);
+  // Pages with a fixed bottom bar on mobile (checkout): lift the chat button above it.
+  const isCheckoutPage = location.pathname === '/checkout';
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
