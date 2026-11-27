@@ -97,9 +97,53 @@ const URDU_WORD_MAP = {
   'سٹور': 'store', 'کتنی': 'kitni', 'مارلہ': 'marla', 'کنال': 'kanal', 'گیلن': 'gallon', 'لیٹر': 'litre'
 };
 
+// Common Roman Urdu SMS-style spellings -> the spelling the rules/FAQ use.
+const SHORTHAND = {
+  krni: 'karni', krna: 'karna', kru: 'karun', krun: 'karun', krdo: 'kardo', krdein: 'kardein', krwana: 'karwana', krwani: 'karwani',
+  mene: 'maine', mjhe: 'mujhe', mujhy: 'mujhe', mjh: 'mujhe', btao: 'batao', btaen: 'bataen', btain: 'batain', bta: 'bata', btaye: 'batayen',
+  kese: 'kaise', kesy: 'kaise', kaisy: 'kaise', kesa: 'kaisa', kahn: 'kahan', kb: 'kab', kyu: 'kyun', kiu: 'kyun', kitny: 'kitne', kitnay: 'kitne',
+  nai: 'nahi', nhi: 'nahi', nahin: 'nahi', ni: 'nahi', chahye: 'chahiye', chaiye: 'chahiye', chahiay: 'chahiye', hn: 'haan', jee: 'ji', plz: 'please', pls: 'please',
+  dukaan: 'dukan', dokan: 'dukan', dukn: 'dukan', rates: 'rate', ratez: 'rate', pric: 'price', prise: 'price', pice: 'price', stok: 'stock', stck: 'stock',
+  deliveri: 'delivery', delivary: 'delivery', delevery: 'delivery', paymnt: 'payment', adress: 'address', addres: 'address', numbr: 'number', nmbr: 'number'
+};
+
+// Product / paint words customers misspell (e.g. "distember" -> "distemper"). Used only for long, unknown words.
+const TYPO_VOCAB = [
+  'distemper', 'emulsion', 'enamel', 'primer', 'putty', 'thinner', 'varnish', 'polish', 'lacquer', 'sealer', 'brush', 'roller', 'sandpaper',
+  'hammer', 'spanner', 'screwdriver', 'trolley', 'hardware', 'berger', 'master', 'choice', 'silicone', 'cement', 'waterproofing', 'turpentine',
+  'gallon', 'quarter', 'delivery', 'payment', 'invoice', 'warranty', 'discount', 'quotation', 'account', 'password', 'tracking', 'whatsapp',
+  'bedroom', 'kitchen', 'bathroom', 'ceiling', 'exterior', 'interior', 'plaster', 'weathershield', 'acrylic', 'texture', 'colour', 'color'
+];
+const TYPO_SKIP = new Set(['sealed', 'hamper', 'hampers', 'textured', 'polished', 'rollers', 'mashwara', 'madad', 'sawal', 'jawab', 'chahiye', 'chahta', 'batayen', 'karwana', 'dikhayen', 'maloomat', 'shukria', 'dukan']);
+
+function editDistance(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 1; j <= n; j += 1) d[0][j] = j;
+  for (let i = 1; i <= m; i += 1) {
+    for (let j = 1; j <= n; j += 1) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+  }
+  return d[m][n];
+}
+
+function fixTypo(word) {
+  if (word.length < 6 || !/^[a-z]+$/.test(word) || TYPO_VOCAB.includes(word) || TYPO_SKIP.has(word)) return word;
+  const limit = word.length >= 9 ? 2 : 1;
+  let best = null;
+  for (const candidate of TYPO_VOCAB) {
+    if (candidate[0] !== word[0] || Math.abs(candidate.length - word.length) > limit) continue;
+    const dist = editDistance(word, candidate);
+    if (dist <= limit && (!best || dist < best.dist)) best = { candidate, dist };
+  }
+  return best ? best.candidate : word;
+}
+
 export function normalize(value) {
   const base = normalizeBase(value);
-  return base.split(' ').map((word) => URDU_WORD_MAP[word] || word).join(' ');
+  return base.split(' ').map((word) => fixTypo(SHORTHAND[word] || URDU_WORD_MAP[word] || word)).join(' ');
 }
 
 function normalizeBase(value) {
@@ -640,7 +684,7 @@ export function answerWithRules(message, products, history = []) {
 
   // 2) Search the live catalog.
   const { matches, notFound, missing } = searchProducts(clean, products);
-  const wantsStockOrPrice = STOCK_PRICE_WORDS.test(clean) || (wordCount <= 4 && /\b(hai|hy|hain)$/.test(clean));
+  const wantsStockOrPrice = STOCK_PRICE_WORDS.test(clean) || (wordCount <= 4 && /\b(hai|hy|hain)$/.test(clean) && (matches.length > 0 || PRODUCT_WORD_RE.test(clean) || BRAND_WORDS.some((b) => clean.includes(b))));
   const missingIsProduct = (missing || []).some((word) => PRODUCT_WORD_RE.test(word) || BRAND_WORDS.includes(word));
   const productish = wantsStockOrPrice || PRODUCT_WORD_RE.test(clean);
   const strongMatch = matches.length > 0 && (matches[0].score >= 2 || wantsStockOrPrice);
@@ -730,13 +774,13 @@ export function answerWithRules(message, products, history = []) {
       reply: english
         ? `Which item do you mean? Type its name (and brand/size/colour) and I will check the website catalogue for stock and price. If it is not listed there, please visit the shop or WhatsApp ${SHOP.whatsappNumber}. 🙂`
         : `Kis item ka rate/stock poochna hai? Uska naam (brand/size/rang ke sath) likh dein, main pehle website ka catalog dekhta hoon. Catalog mein na ho to dukan visit karein ya WhatsApp karein: ${SHOP.whatsappNumber}. 🙂`,
-      suggestions: DEFAULT_SUGGESTIONS,
+      suggestions: ['Master enamel red', 'Primer ka rate', 'Putty ka rate'],
       intent: 'price-ask'
     };
   }
   // Nothing matched: never sound clueless. Be honest that the team is the right source, hand over contacts,
   // and keep the customer moving with useful starting points. (Variants rotate so repeats do not feel robotic.)
-  const pick = clean.length % 3;
+  const variant = clean.length % 3;
   const urVariants = [
     `Is sawal ka bilkul sahi aur pakka jawab hamari team hi de sakti hai, taake aap ko ghalat maloomat na mile. 🙏\nSeedha WhatsApp karein: ${SHOP.whatsappNumber}\nYa call karein:\n${BRANCH_LINES_UR}\n\nTab tak main in mein abhi madad kar sakta hoon: product ka rate/stock, delivery, order tracking, paint ka andaza aur rang ka mashwara.`,
     `Ye sawal thora khaas hai, is ka pakka jawab dukan ki team se milna behtar hai. 🙂 Aap WhatsApp par likh dein (${SHOP.whatsappNumber}) ya branch par call karein:\n${BRANCH_LINES_UR}\n\nAap sawal aasan alfaaz mein dobara bhi likh sakte hain, ya neeche se koi option chun lein - main foran madad karta hoon.`,
@@ -749,8 +793,8 @@ export function answerWithRules(message, products, history = []) {
   ];
   const chipsUr = [['Kitna paint lagega?', 'Shop kahan hai?', 'Owner se baat karni hai'], ['Rang kaunsa lun?', 'Delivery hoti hai?', 'Order kaise karun?'], ['Kaun kaun si brands hain?', 'Order track kaise karun?', 'Shop kab tak khula hai?']];
   return {
-    reply: english ? enVariants[pick] : urVariants[pick],
-    suggestions: chipsUr[pick],
+    reply: english ? enVariants[variant] : urVariants[variant],
+    suggestions: chipsUr[variant],
     intent: 'fallback'
   };
 }

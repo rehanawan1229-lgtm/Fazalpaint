@@ -9,7 +9,7 @@ export const FAQ = [...CORE, ...HARDWARE, ...PAINT_FAQ, ...MORE, ...MATRIX2];
 export const FAQ_STATS = { answers: FAQ.length, keywords: FAQ.reduce((n, e) => n + e.k.length + (e.and ? e.and.length : 0), 0) };
 
 // Small chit-chat entries only apply to short messages so they never hijack real questions.
-const MAX_WORDS = { okay: 3, nice_site: 7, love: 7, goodnight: 5, joke: 5, abuse: 9, jumma: 6, eid_wish: 8, weather: 8, prayer_time: 8, human: 12, capabilities: 7, whoami: 9 };
+const MAX_WORDS = { talk: 8, okay: 3, nice_site: 7, love: 7, goodnight: 5, joke: 5, abuse: 9, jumma: 6, eid_wish: 8, weather: 8, prayer_time: 8, human: 12, capabilities: 7, whoami: 9 };
 
 function one(a, b) {
   if (a === b) return true;
@@ -62,7 +62,7 @@ export function matchFaq(clean) {
 
 export function renderFaq(entry, english, ctx, priceAsked = false) {
   let text = english && entry.en ? entry.en : entry.ur;
-  if (entry.note) {
+  if (entry.note || (priceAsked && /^t-/.test(entry.id))) {
     text += english
       ? (priceAsked
         ? `\n\nI checked the website catalogue and could not find this item with a price. Please visit the shop or WhatsApp ${ctx.WA} for stock and price. 🙂`
